@@ -1,0 +1,15 @@
+# -- Cluster resource name. Defaults to release name.
+# name: ""
+# -- PostgreSQL image. foremanctl deployments use major version 16.
+imageName: ghcr.io/cloudnative-pg/postgresql:16
+# -- Number of PostgreSQL instances.
+instances: 1
+storage:
+  # -- PVC size for each PostgreSQL instance.
+  size: 10Gi
+  # -- Storage class for PostgreSQL PVCs. Empty uses cluster default.
+  storageClass: ""
+# -- PostgreSQL database name.
+database: foreman
+# -- Extra SQL statements to run after database creation.
+postInitSQL: []

@@ -1,0 +1,51 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "global": {
+      "type": "object"
+    },
+    "name": {
+      "type": "string",
+      "description": "Cluster resource name. Defaults to release name."
+    },
+    "imageName": {
+      "type": "string",
+      "minLength": 1,
+      "description": "PostgreSQL image."
+    },
+    "instances": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Number of PostgreSQL instances."
+    },
+    "storage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "size": {
+          "type": "string",
+          "minLength": 1,
+          "description": "PVC size for each PostgreSQL instance."
+        },
+        "storageClass": {
+          "type": "string",
+          "description": "Storage class for PostgreSQL PVCs. Empty uses cluster default."
+        }
+      }
+    },
+    "database": {
+      "type": "string",
+      "minLength": 1,
+      "description": "PostgreSQL database name."
+    },
+    "postInitSQL": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Extra SQL statements to run after database creation."
+    }
+  }
+}

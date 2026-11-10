@@ -1,0 +1,22 @@
+apiVersion: platform.theforeman.org/v1alpha1
+kind: Foreman
+metadata:
+  name: production
+spec:
+  fqdn: foreman.example.com
+  plugins:
+    - foreman_discovery
+  tls:
+    issuerRef:
+      name: foreman-internal-ca
+  database:
+    cluster:
+      name: foreman-db
+  valkey:
+    host: valkey
+  encryptionKeySecretRef: foreman-encryption-key
+  web:
+    replicas: 2
+    resources:
+      limits:
+        memory: 8Gi

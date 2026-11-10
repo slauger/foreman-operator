@@ -1,0 +1,11 @@
+CloudNativePG cluster {{ include "foreman-db-cnpg.name" . }} created.
+
+Reference it from a Foreman resource:
+
+  spec:
+    database:
+      cluster:
+        name: {{ include "foreman-db-cnpg.name" . }}
+
+Service: {{ include "foreman-db-cnpg.name" . }}-rw
+Secret:  {{ include "foreman-db-cnpg.name" . }}-app

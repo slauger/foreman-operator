@@ -1,0 +1,30 @@
+apiVersion: platform.theforeman.org/v1alpha1
+kind: SmartProxy
+metadata:
+  name: provisioning-vlan100
+spec:
+  foremanRef: production
+  profile: Provisioning
+  url: https://proxy-vlan100.example.com:8443
+  tls:
+    issuerRef:
+      name: foreman-internal-ca
+  oauthSecretRef: foreman-proxy-oauth
+  networks:
+    - attachment: provisioning-vlan100
+      address: 192.0.2.10/24
+  features:
+    tftp: {}
+    templates:
+      url: http://192.0.2.10:8000
+    dhcp:
+      provider: dnsmasq
+      subnets:
+        - network: 192.0.2.0/24
+          range: 192.0.2.100-192.0.2.200
+    dns:
+      provider: dns_nsupdate
+      server: dns.example.com
+      keySecretRef: proxy-vlan100-tsig
+  storage:
+    size: 5Gi

@@ -1,0 +1,9 @@
+- 🌐 **Foreman on Kubernetes** - Web, Dynflow, and recurring tasks as native workloads, declared through CRDs
+- 🛰️ **Smart Proxy as a Resource** - Each proxy is one `SmartProxy` with a profile, registered in Foreman automatically
+- 🥾 **Bare-Metal Provisioning** - PXE, DHCP, TFTP, and DNS on direct L2 networks through Multus
+- 🔐 **cert-manager Integration** - Public certificates for clients, an internal PKI for mutual TLS
+- 🐘 **CloudNativePG** - PostgreSQL through CloudNativePG, with a chart for the cluster
+- 🔒 **Rootless and OpenShift Ready** - Own UBI 9 images, built for random UIDs
+- 🚪 **TLS Passthrough Frontend** - Client certificates work the same on k3s and OpenShift
+- 🔌 **Plugin Catalog** - Plugins, proxy plugins, and dependencies resolved by the operator
+- 🧭 **Katello Later** - Candlepin and Pulp are a separate, later stage

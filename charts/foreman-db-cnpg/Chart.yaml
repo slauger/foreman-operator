@@ -1,0 +1,21 @@
+apiVersion: v2
+name: foreman-db-cnpg
+description: CloudNativePG cluster for Foreman
+type: application
+version: 0.0.0
+appVersion: "0.0.0"
+home: https://github.com/slauger/foreman-operator
+sources:
+  - https://github.com/slauger/foreman-operator
+maintainers:
+  - name: Simon Lauger
+    email: simon@lauger.de
+    url: https://lauger.de
+keywords:
+  - foreman
+  - postgresql
+  - cloudnative-pg
+  - kubernetes
+annotations:
+  artifacthub.io/license: Apache-2.0
+  artifacthub.io/category: database

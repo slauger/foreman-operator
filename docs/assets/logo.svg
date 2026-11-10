@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="foreman-operator">
+  <path fill="#23B0DB" d="M10 40a22 22 0 0 1 44 0z"/>
+  <rect fill="#3AD0CD" x="27" y="14" width="10" height="26" rx="2"/>
+  <rect fill="#005375" x="4" y="40" width="56" height="8" rx="4"/>
+</svg>

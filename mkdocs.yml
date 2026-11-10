@@ -1,0 +1,86 @@
+site_name: Foreman Operator
+site_description: An experimental Kubernetes Operator for running Foreman and Smart Proxies on Kubernetes and OpenShift
+site_url: https://slauger.github.io/foreman-operator
+repo_url: https://github.com/slauger/foreman-operator
+repo_name: slauger/foreman-operator
+
+theme:
+  name: material
+  logo: assets/logo.svg
+  favicon: assets/logo.svg
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - content.code.copy
+    - content.code.annotate
+  icon:
+    repo: fontawesome/brands/github
+
+extra_css:
+  - stylesheets/extra.css
+
+exclude_docs: |
+  _snippets/
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Concepts:
+      - Architecture: concepts/architecture.md
+      - Smart Proxy: concepts/smart-proxy.md
+      - Provisioning: concepts/provisioning.md
+      - Traffic Flow: concepts/traffic-flow.md
+      - Certificates: concepts/certificates.md
+      - Database: concepts/database.md
+      - Platform Support: concepts/platforms.md
+      - Container Images: concepts/images.md
+      - Plugins: concepts/plugins.md
+      - Upgrades: concepts/upgrades.md
+      - Katello: concepts/katello.md
+      - Migration: concepts/migration.md
+  - Reference:
+      - Overview: reference/index.md
+      - Foreman: reference/foreman.md
+      - Frontend: reference/frontend.md
+      - SmartProxy: reference/smartproxy.md
+  - Development:
+      - Local Setup: development/local-setup.md
+      - Testing: development/testing.md
+  - Project:
+      - Roadmap: roadmap.md
+      - Acknowledgements: acknowledgements.md

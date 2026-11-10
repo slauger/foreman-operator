@@ -1,0 +1,8 @@
+*.tar.gz
+*.swp
+.env
+.venv/
+bin/
+cover.out
+node_modules/
+site/

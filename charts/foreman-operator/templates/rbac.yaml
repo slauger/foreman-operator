@@ -1,0 +1,64 @@
+{{- $namespaced := ne .Values.operator.watchNamespace "" }}
+{{- $watch := .Values.operator.watchNamespace }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: {{ ternary "Role" "ClusterRole" $namespaced }}
+metadata:
+  name: {{ include "foreman-operator.fullname" . }}
+  {{- if $namespaced }}
+  namespace: {{ $watch }}
+  {{- end }}
+  labels:
+    {{- include "foreman-operator.labels" . | nindent 4 }}
+# Generated from the controllers by "make manifests".
+{{ .Files.Get "files/rules.yaml" }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: {{ ternary "RoleBinding" "ClusterRoleBinding" $namespaced }}
+metadata:
+  name: {{ include "foreman-operator.fullname" . }}
+  {{- if $namespaced }}
+  namespace: {{ $watch }}
+  {{- end }}
+  labels:
+    {{- include "foreman-operator.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: {{ ternary "Role" "ClusterRole" $namespaced }}
+  name: {{ include "foreman-operator.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "foreman-operator.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- if .Values.operator.leaderElection }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "foreman-operator.fullname" . }}-leader-election
+  namespace: {{ default .Release.Namespace $watch }}
+  labels:
+    {{- include "foreman-operator.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "foreman-operator.fullname" . }}-leader-election
+  namespace: {{ default .Release.Namespace $watch }}
+  labels:
+    {{- include "foreman-operator.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "foreman-operator.fullname" . }}-leader-election
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "foreman-operator.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

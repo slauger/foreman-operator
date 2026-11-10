@@ -1,0 +1,13 @@
+foreman-operator {{ include "foreman-operator.image" . }} is installed in namespace {{ .Release.Namespace }}.
+{{- if .Values.operator.watchNamespace }}
+It only watches namespace {{ .Values.operator.watchNamespace }}.
+{{- else }}
+It watches all namespaces.
+{{- end }}
+
+This is an experimental, unofficial project. Next steps:
+  1. Create a CloudNativePG Cluster and a Valkey instance for Foreman.
+  2. Apply a Foreman, a Frontend, and optionally SmartProxy resources.
+  3. Watch progress: kubectl get foremen,frontends,smartproxies -A
+
+Smart Proxies with dnsmasq need a namespace with Pod Security level "privileged".

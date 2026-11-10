@@ -26,6 +26,19 @@ A third profile for Katello content mirrors will be designed with [Katello](kate
 
 `Execution` needs persistent SSH keys in a Secret. Its URL must resolve from managed hosts when callbacks are used.
 
+## One pod per proxy
+
+Every `SmartProxy` is its own pod. Foreman assigns the proxy per feature on each subnet, so a deployment can split features across several small proxies instead of one large one:
+
+| Proxy | Features | Network | Privileges |
+|---|---|---|---|
+| One per L2 network | `dhcp`, `tftp`, `templates` | Multus | Dedicated |
+| One per organization or zone | `dns` | Pod network | Default |
+| One per BMC network, where needed | `bmc` | Pod network or Multus | Default |
+| One or more | `remoteExecutionSSH`, `ansible` | Pod network | Default |
+
+A feature and the service it controls share a pod, because they share files. DHCP and TFTP stay together since dnsmasq serves both.
+
 ## Off-cluster proxies
 
 A proxy outside the cluster cannot use cert-manager directly. The operator will export a certificate bundle for it, similar to the `auth-bundle` command of `foremanctl`.

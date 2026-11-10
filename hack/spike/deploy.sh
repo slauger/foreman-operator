@@ -49,6 +49,7 @@ k wait --for=condition=Ready cluster/foreman-db --timeout=300s
 # A finished Job is immutable, so it is recreated on every run.
 k delete job foreman-migrate --ignore-not-found
 k apply --validate=false -f "${SCRIPT_DIR}/manifests.yaml"
+k apply --validate=false -f "${SCRIPT_DIR}/gateway.yaml"
 k wait --for=condition=Ready certificate --all --timeout=120s
 
 for _ in $(seq 1 120); do
@@ -64,7 +65,7 @@ for _ in $(seq 1 120); do
 done
 k wait --for=condition=Complete job/foreman-migrate --timeout=1s
 
-k rollout restart deployment/foreman-web deployment/dynflow-orchestrator deployment/dynflow-worker
+k rollout restart deployment/foreman-web deployment/dynflow-orchestrator deployment/dynflow-worker deployment/frontend
 k rollout status deployment/dynflow-orchestrator --timeout=600s
 k rollout status deployment/dynflow-worker --timeout=600s
 k rollout status deployment/foreman-web --timeout=900s

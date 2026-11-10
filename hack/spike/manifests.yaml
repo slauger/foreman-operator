@@ -38,7 +38,7 @@ items:
     spec:
       secretName: frontend-server
       dnsNames:
-        - foreman.spike.example.test
+        - e2e-openvox.lnxlabs.de
       usages:
         - server auth
       issuerRef:
@@ -61,11 +61,11 @@ items:
     data:
       settings.yaml: |
         ---
-        :domain: spike.example.test
-        :fqdn: foreman.spike.example.test
-        :foreman_url: https://foreman.spike.example.test
+        :domain: lnxlabs.de
+        :fqdn: e2e-openvox.lnxlabs.de
+        :foreman_url: https://e2e-openvox.lnxlabs.de
         :hosts:
-          - foreman.spike.example.test
+          - e2e-openvox.lnxlabs.de
         :trusted_proxies:
           - 127.0.0.0/8
           - 10.42.0.0/16
@@ -86,12 +86,12 @@ items:
       name: frontend-config
     data:
       site.conf: |
-        ServerName foreman.spike.example.test
+        ServerName e2e-openvox.lnxlabs.de
         Listen 8443 https
         SSLSessionCache shmcb:/tmp/ssl_scache(512000)
 
         <VirtualHost *:8443>
-          ServerName foreman.spike.example.test
+          ServerName e2e-openvox.lnxlabs.de
           SSLEngine on
           SSLCertificateFile /etc/frontend/server/tls.crt
           SSLCertificateKeyFile /etc/frontend/server/tls.key
@@ -114,7 +114,7 @@ items:
         </VirtualHost>
 
         <VirtualHost *:8080>
-          ServerName foreman.spike.example.test
+          ServerName e2e-openvox.lnxlabs.de
           RequestHeader unset REMOTE-USER
           RequestHeader set X-Forwarded-Proto "http"
           RequestHeader set SSL-CLIENT-S-DN ""
@@ -349,7 +349,7 @@ items:
                   port: 3000
                   httpHeaders:
                     - name: Host
-                      value: foreman.spike.example.test
+                      value: e2e-openvox.lnxlabs.de
                     - name: X-Forwarded-Proto
                       value: https
                 periodSeconds: 10

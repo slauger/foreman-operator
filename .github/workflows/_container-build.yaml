@@ -289,7 +289,9 @@ jobs:
           path: sbom/*.json
           retention-days: 7
 
+      # Provenance goes to the public Sigstore log like signatures, so it follows inputs.sign.
       - name: Attest manifest index
+        if: inputs.sign
         uses: actions/attest-build-provenance@v4
         with:
           subject-name: ghcr.io/${{ github.repository_owner }}/${{ inputs.image_name }}
@@ -297,7 +299,7 @@ jobs:
           push-to-registry: true
 
       - name: Attest manifest index (unsuffixed alias)
-        if: inputs.alias_image_name != ''
+        if: inputs.sign && inputs.alias_image_name != ''
         uses: actions/attest-build-provenance@v4
         with:
           subject-name: ghcr.io/${{ github.repository_owner }}/${{ inputs.alias_image_name }}

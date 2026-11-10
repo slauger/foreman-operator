@@ -14,7 +14,7 @@ flowchart LR
   Edge --> Frontend[Frontend, mutual TLS]
   Frontend --> Web[Foreman web]
 
-  Dynflow[Dynflow, optional] --> PG[(PostgreSQL)]
+  Dynflow[Dynflow] --> PG[(PostgreSQL)]
   Dynflow --> Valkey[(Valkey)]
   Web --> PG
   Web --> Valkey
@@ -48,12 +48,14 @@ flowchart TD
 | Foreman web | Deployment | 2+ | Rails server on port 3000 |
 | Dynflow orchestrator | Deployment, Recreate | 1 | Sidekiq with the orchestrator configuration |
 | Dynflow worker | Deployment | 1+ | Sidekiq with the worker configuration |
-| Dynflow hosts queue | Deployment | 1+ | Sidekiq with the hosts queue configuration |
+| Dynflow hosts queue | Deployment | 0+ | Sidekiq with the hosts queue configuration |
 | Recurring tasks | CronJob | n/a | `foreman-rake cron:hourly`, daily, weekly, monthly |
-| Foreman migration | Job | n/a | `db:migrate` and `db:seed` |
+| Foreman migration | Job | n/a | `db:migrate`, `db:seed`, and `upgrade:run` |
 | Smart Proxy | Deployment, Recreate | 1 | See [Smart Proxy](smart-proxy.md) |
 
-The process split follows the `foremanctl` deployment. Dynflow is created only when `spec.dynflow` is set. Puma workers are derived from the container limits.
+The process split follows the `foremanctl` deployment. Puma workers are derived from the container limits.
+
+Foreman core uses Dynflow as its ActiveJob backend, independent of Katello, for example for report templates, notifications, and event subscribers. The orchestrator and one worker are therefore part of every deployment. The hosts queue is only needed for Remote Execution, so it defaults to zero replicas.
 
 ## Deliberately not CRDs
 

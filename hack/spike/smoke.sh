@@ -3,7 +3,7 @@
 set -euo pipefail
 
 NAMESPACE="foreman-spike"
-HOST="foreman.spike.example.test"
+HOST="e2e-openvox.lnxlabs.de"
 PORT="18443"
 
 export KUBECONFIG="${HOME}/.kube/e2e-openvox"

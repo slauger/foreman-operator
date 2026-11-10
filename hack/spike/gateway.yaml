@@ -1,0 +1,84 @@
+# Public access for the Foreman spike. TLS passes through to the frontend, so client
+# certificates keep working. The node has no load balancer, so the Envoy Service binds
+# the public node address through externalIPs.
+apiVersion: v1
+kind: List
+items:
+  - apiVersion: gateway.envoyproxy.io/v1alpha1
+    kind: EnvoyProxy
+    metadata:
+      name: foreman-spike
+    spec:
+      provider:
+        type: Kubernetes
+        kubernetes:
+          envoyService:
+            type: ClusterIP
+            patch:
+              type: StrategicMerge
+              value:
+                spec:
+                  externalIPs:
+                    - 188.245.216.177
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: GatewayClass
+    metadata:
+      name: foreman-spike
+    spec:
+      controllerName: gateway.envoyproxy.io/gatewayclass-controller
+      parametersRef:
+        group: gateway.envoyproxy.io
+        kind: EnvoyProxy
+        name: foreman-spike
+        namespace: foreman-spike
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: Gateway
+    metadata:
+      name: foreman
+    spec:
+      gatewayClassName: foreman-spike
+      listeners:
+        - name: https
+          protocol: TLS
+          port: 443
+          hostname: e2e-openvox.lnxlabs.de
+          tls:
+            mode: Passthrough
+          allowedRoutes:
+            namespaces:
+              from: Same
+        - name: http
+          protocol: HTTP
+          port: 80
+          hostname: e2e-openvox.lnxlabs.de
+          allowedRoutes:
+            namespaces:
+              from: Same
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: TLSRoute
+    metadata:
+      name: foreman
+    spec:
+      parentRefs:
+        - name: foreman
+          sectionName: https
+      hostnames:
+        - e2e-openvox.lnxlabs.de
+      rules:
+        - backendRefs:
+            - name: frontend
+              port: 8443
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: HTTPRoute
+    metadata:
+      name: foreman
+    spec:
+      parentRefs:
+        - name: foreman
+          sectionName: http
+      hostnames:
+        - e2e-openvox.lnxlabs.de
+      rules:
+        - backendRefs:
+            - name: frontend
+              port: 8080

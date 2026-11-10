@@ -58,9 +58,10 @@ type ForemanSpec struct {
 	// Valkey configures the Valkey connection.
 	Valkey ValkeySpec `json:"valkey"`
 
-	// EncryptionKeySecretRef names the Secret holding the key under "encryption-key".
-	// +kubebuilder:validation:MinLength=1
-	EncryptionKeySecretRef string `json:"encryptionKeySecretRef"`
+	// SecretsRef names the Secret with "encryption-key", "secret-key-base", and "admin-password".
+	// The operator creates it with generated values if it does not exist. Defaults to "<name>-secrets".
+	// +optional
+	SecretsRef string `json:"secretsRef,omitempty"`
 
 	// Web configures the web workload.
 	// +optional

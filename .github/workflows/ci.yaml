@@ -28,7 +28,7 @@ jobs:
         run: go vet ./...
 
       - name: Test
-        run: go test ./...
+        run: make test
 
       - name: Check generated files
         run: make check-manifests

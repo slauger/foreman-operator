@@ -13,7 +13,7 @@ A Kubernetes Operator that maps [Foreman](https://theforeman.org/) and Smart Pro
 | Area | State |
 |---|---|
 | Concept and documentation | Draft |
-| CRD types and generated CRDs | Implemented, not tested against an API server |
+| CRD types and generated CRDs | Implemented, validation tested with envtest |
 | CloudNativePG chart | Implemented, not tested on a cluster |
 | Controllers | Not started |
 | Container images | Not started |

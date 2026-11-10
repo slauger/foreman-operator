@@ -154,11 +154,6 @@ spec:
                     minimum: 0
                     type: integer
                 type: object
-              encryptionKeySecretRef:
-                description: EncryptionKeySecretRef names the Secret holding the key
-                  under "encryption-key".
-                minLength: 1
-                type: string
               fqdn:
                 description: FQDN is the primary hostname of this Foreman instance.
                 minLength: 1
@@ -192,6 +187,11 @@ spec:
                 items:
                   type: string
                 type: array
+              secretsRef:
+                description: |-
+                  SecretsRef names the Secret with "encryption-key", "secret-key-base", and "admin-password".
+                  The operator creates it with generated values if it does not exist. Defaults to "<name>-secrets".
+                type: string
               tls:
                 description: TLS selects the source of the internal certificates.
                 properties:
@@ -310,7 +310,6 @@ spec:
                 type: object
             required:
             - database
-            - encryptionKeySecretRef
             - fqdn
             - tls
             - valkey

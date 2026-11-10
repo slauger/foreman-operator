@@ -50,7 +50,7 @@ flowchart TD
 | Dynflow worker | Deployment | 1+ | Sidekiq with the worker configuration |
 | Dynflow hosts queue | Deployment | 0+ | Sidekiq with the hosts queue configuration |
 | Recurring tasks | CronJob | n/a | `foreman-rake cron:hourly`, daily, weekly, monthly |
-| Foreman migration | Job | n/a | `db:migrate` and `db:seed` |
+| Foreman migration | Job | n/a | `db:migrate`, `db:seed`, and `upgrade:run` |
 | Smart Proxy | Deployment, Recreate | 1 | See [Smart Proxy](smart-proxy.md) |
 
 The process split follows the `foremanctl` deployment. Puma workers are derived from the container limits.

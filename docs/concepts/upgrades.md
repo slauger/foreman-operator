@@ -21,7 +21,7 @@ stateDiagram-v2
 
 - **Preflight** checks image compatibility, single-step upgrade, certificate validity, and running tasks. Foreman must be upgraded one release at a time.
 - **Fence** stops every writer to a schema being migrated.
-- **Migrate** runs one Job per schema owner.
+- **Migrate** runs one Job per schema owner. For Foreman, the Job runs `db:migrate`, `db:seed`, and `upgrade:run`, in this order. `upgrade:run` executes one-time data tasks of a release and refuses to run while migrations or seeds are pending.
 - Automatic rollback is not offered after a migration has run.
 - Smart Proxies are upgraded after Foreman. DHCP and TFTP keep serving during a Foreman upgrade, but Foreman cannot change reservations while it is fenced.
 

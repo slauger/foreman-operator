@@ -189,7 +189,7 @@ items:
             - name: migrate
               image: ghcr.io/slauger/foreman-operator-foreman:spike
               imagePullPolicy: Always
-              command: ["/bin/bash", "-c", "bin/rails db:migrate && bin/rails db:seed"]
+              command: ["/bin/bash", "-c", "bin/rails db:migrate && bin/rails db:seed && bin/rails upgrade:run"]
               env: &foremanEnv
                 - name: DB_URI
                   valueFrom:

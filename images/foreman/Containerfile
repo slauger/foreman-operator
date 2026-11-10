@@ -13,7 +13,7 @@ RUN groupadd -r -g 1001 foreman \
     && useradd -r -u 1001 -g foreman -d /usr/share/foreman -s /sbin/nologin foreman
 
 RUN dnf install -y --nodocs "https://yum.theforeman.org/releases/${FOREMAN_VERSION}/el9/x86_64/foreman-release.rpm" \
-    && dnf install -y --nodocs foreman foreman-postgresql foreman-redis \
+    && dnf install -y --nodocs foreman foreman-postgresql foreman-redis foreman-service foreman-dynflow-sidekiq \
     && dnf clean all
 
 # The RPM scriptlets generate secrets at install time. They must never ship in an image:

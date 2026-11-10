@@ -17,7 +17,7 @@
 | `web.replicas` | integer | No | `2` | Web pods |
 | `web.resources` | ResourceRequirements | No | | Compute resources |
 | `dynflow.workerReplicas` | integer | No | `1` | General workers |
-| `dynflow.hostsQueueReplicas` | integer | No | `1` | Hosts queue workers |
+| `dynflow.hostsQueueReplicas` | integer | No | `0` | Hosts queue workers, used by Remote Execution |
 | `dynflow.resources` | ResourceRequirements | No | | Compute resources of workers |
 
 ## Status

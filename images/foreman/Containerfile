@@ -16,8 +16,12 @@ RUN dnf install -y --nodocs "https://yum.theforeman.org/releases/${FOREMAN_VERSI
     && dnf install -y --nodocs foreman foreman-postgresql foreman-redis \
     && dnf clean all
 
-# ENCRYPTION_KEY comes from the environment, not from a generated file.
-RUN rm -f /usr/share/foreman/config/initializers/encryption_key.rb /etc/foreman/encryption_key.rb
+# The RPM scriptlets generate secrets at install time. They must never ship in an image:
+# ENCRYPTION_KEY and SECRET_KEY_BASE come from the environment instead.
+RUN rm -f /usr/share/foreman/config/initializers/encryption_key.rb /etc/foreman/encryption_key.rb \
+    && echo "Foreman::Application.config.secret_key_base = ENV.fetch('SECRET_KEY_BASE')" \
+        > /usr/share/foreman/config/initializers/local_secret_token.rb \
+    && chmod 0644 /usr/share/foreman/config/initializers/local_secret_token.rb
 
 # OpenShift random-UID pattern: group root owns writable paths and mirrors user permissions.
 RUN for d in /etc/foreman /var/lib/foreman /var/log/foreman /run/foreman /usr/share/foreman/tmp; do \

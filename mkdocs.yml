@@ -73,6 +73,8 @@ nav:
       - Upgrades: concepts/upgrades.md
       - Katello: concepts/katello.md
       - Migration: concepts/migration.md
+  - Guides:
+      - Supply Chain Security: guides/supply-chain-security.md
   - Reference:
       - Overview: reference/index.md
       - Foreman: reference/foreman.md

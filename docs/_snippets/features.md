@@ -6,4 +6,5 @@
 - 🔒 **Rootless and OpenShift Ready** - Own UBI 9 images, built for random UIDs
 - 🚪 **TLS Passthrough Frontend** - Client certificates work the same on k3s and OpenShift
 - 🔌 **Plugin Catalog** - Plugins, proxy plugins, and dependencies resolved by the operator
+- 🛡️ **Supply Chain Security** - Cosign signed images, SLSA provenance, SBOM, Conforma policy validation, and Renovate
 - 🧭 **Katello Later** - Candlepin and Pulp are a separate, later stage

@@ -33,6 +33,7 @@ Some concepts and ideas were adopted from [theforeman/foreman-kubernetes](https:
 - 🔒 **Rootless and OpenShift Ready** - Own UBI 9 images, built for random UIDs
 - 🚪 **TLS Passthrough Frontend** - Client certificates work the same on k3s and OpenShift
 - 🔌 **Plugin Catalog** - Plugins, proxy plugins, and dependencies resolved by the operator
+- 🛡️ **Supply Chain Security** - Cosign signed images, SLSA provenance, SBOM, Conforma policy validation, and Renovate
 - 🧭 **Katello Later** - Candlepin and Pulp are a separate, later stage
 <!-- /features -->
 
@@ -112,6 +113,10 @@ make docs-serve    # Documentation with live reload
 ```
 
 See [Contributing](CONTRIBUTING.md).
+
+## Supply Chain Security
+
+Dependencies are kept current by Renovate, and CI runs `govulncheck` and `golangci-lint`. Published images are planned to be signed with cosign and to carry SLSA provenance and SBOMs, validated with Conforma. The reusable workflows are in place, but no images are built yet. See [Supply Chain Security](docs/guides/supply-chain-security.md).
 
 ## Documentation
 

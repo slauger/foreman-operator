@@ -1,0 +1,39 @@
+# Rootless Foreman on UBI 9 for Kubernetes/OpenShift
+FROM registry.access.redhat.com/ubi9/ubi:9.8-1793861509
+
+ARG FOREMAN_VERSION=5.0
+
+LABEL org.opencontainers.image.title="foreman" \
+      org.opencontainers.image.description="Rootless Foreman for Kubernetes/OpenShift (experimental, unofficial)" \
+      org.opencontainers.image.source="https://github.com/slauger/foreman-operator" \
+      org.opencontainers.image.licenses="GPL-3.0-only"
+
+# A fixed UID keeps file ownership predictable. OpenShift replaces it at runtime.
+RUN groupadd -r -g 1001 foreman \
+    && useradd -r -u 1001 -g foreman -d /usr/share/foreman -s /sbin/nologin foreman
+
+RUN dnf install -y --nodocs "https://yum.theforeman.org/releases/${FOREMAN_VERSION}/el9/x86_64/foreman-release.rpm" \
+    && dnf install -y --nodocs foreman foreman-postgresql foreman-redis \
+    && dnf clean all
+
+# ENCRYPTION_KEY comes from the environment, not from a generated file.
+RUN rm -f /usr/share/foreman/config/initializers/encryption_key.rb /etc/foreman/encryption_key.rb
+
+# OpenShift random-UID pattern: group root owns writable paths and mirrors user permissions.
+RUN for d in /etc/foreman /var/lib/foreman /var/log/foreman /run/foreman /usr/share/foreman/tmp; do \
+        mkdir -p "$d"; \
+        chgrp -R 0 "$d"; \
+        chmod -R g=u "$d"; \
+    done
+
+ENV HOME=/tmp \
+    RAILS_ENV=production \
+    RAILS_LOG_TO_STDOUT=true \
+    RAILS_SERVE_STATIC_FILES=true \
+    FOREMAN_BIND=0.0.0.0 \
+    MALLOC_ARENA_MAX=2
+
+WORKDIR /usr/share/foreman
+USER 1001:0
+EXPOSE 3000
+CMD ["/usr/share/foreman/bin/rails", "server", "--environment", "production", "--pid", "/tmp/rails.pid"]

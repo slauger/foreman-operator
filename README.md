@@ -48,7 +48,7 @@ flowchart LR
 
     Web --> PG[("PostgreSQL<br/>CloudNativePG")]
     Web --> Valkey[("Valkey")]
-    Dynflow["Dynflow (optional)"] --> PG
+    Dynflow["Dynflow"] --> PG
     Dynflow --> Valkey
 
     Web <-->|"mutual TLS"| Prov["SmartProxy<br/>Provisioning"]
@@ -58,7 +58,7 @@ flowchart LR
     Exec --> Hosts["Managed hosts"]
 ```
 
-A **Foreman** is the root resource. It owns the web workload, optional Dynflow workloads, recurring tasks, and database migrations. A **Frontend** terminates mutual TLS inside the cluster and exposes Foreman through a passthrough Route or LoadBalancer. A **SmartProxy** is one proxy registered in Foreman, with a profile that selects its features and privileges. A provisioning proxy runs DHCP and TFTP next to the proxy process and attaches to a provisioning network through Multus.
+A **Foreman** is the root resource. It owns the web workload, the Dynflow workloads, recurring tasks, and database migrations. A **Frontend** terminates mutual TLS inside the cluster and exposes Foreman through a passthrough Route or LoadBalancer. A **SmartProxy** is one proxy registered in Foreman, with a profile that selects its features and privileges. A provisioning proxy runs DHCP and TFTP next to the proxy process and attaches to a provisioning network through Multus.
 
 ## CRD Model
 

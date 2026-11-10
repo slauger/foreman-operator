@@ -13,7 +13,7 @@ import (
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
 // Foreman is the Schema for the foremen API.
-// It owns the Foreman web workload, optional Dynflow workloads, and recurring tasks.
+// It owns the Foreman web workload, the Dynflow workloads, and recurring tasks.
 type Foreman struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -66,9 +66,10 @@ type ForemanSpec struct {
 	// +optional
 	Web ForemanWebSpec `json:"web,omitempty"`
 
-	// Dynflow enables the task workloads when set.
+	// Dynflow configures the task workloads. Foreman uses Dynflow as its ActiveJob backend.
+	// +kubebuilder:default={}
 	// +optional
-	Dynflow *DynflowSpec `json:"dynflow,omitempty"`
+	Dynflow DynflowSpec `json:"dynflow,omitempty"`
 }
 
 // DatabaseSpec selects the CloudNativePG cluster.
@@ -123,8 +124,8 @@ type DynflowSpec struct {
 	// +optional
 	WorkerReplicas *int32 `json:"workerReplicas,omitempty"`
 
-	// HostsQueueReplicas is the number of workers for the hosts queue.
-	// +kubebuilder:default=1
+	// HostsQueueReplicas is the number of workers for the hosts queue, used by Remote Execution.
+	// +kubebuilder:default=0
 	// +kubebuilder:validation:Minimum=0
 	// +optional
 	HostsQueueReplicas *int32 `json:"hostsQueueReplicas,omitempty"`

@@ -208,6 +208,10 @@ items:
                     secretKeyRef:
                       name: foreman-secrets
                       key: secret-key-base
+                - name: DYNFLOW_REDIS_URL
+                  value: redis://valkey:6379/6
+                - name: REDIS_PROVIDER
+                  value: DYNFLOW_REDIS_URL
                 - name: SEED_ADMIN_USER
                   value: admin
                 - name: SEED_ADMIN_PASSWORD
@@ -245,6 +249,68 @@ items:
               emptyDir: {}
             - name: rails-tmp
               emptyDir: {}
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: dynflow-orchestrator
+    spec:
+      replicas: 1
+      strategy:
+        type: Recreate
+      selector:
+        matchLabels:
+          app: dynflow-orchestrator
+      template:
+        metadata:
+          labels:
+            app: dynflow-orchestrator
+        spec:
+          securityContext: *podSecurity
+          containers:
+            - name: sidekiq
+              image: ghcr.io/slauger/foreman-operator-foreman:spike
+              imagePullPolicy: Always
+              command: ["sidekiq", "-e", "production", "-r", "./extras/dynflow-sidekiq.rb", "-C", "/etc/foreman/dynflow/orchestrator.yml"]
+              env: *foremanEnv
+              securityContext: *containerSecurity
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 512Mi
+                limits:
+                  memory: 1Gi
+              volumeMounts: *foremanMounts
+          volumes: *foremanVolumes
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: dynflow-worker
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: dynflow-worker
+      template:
+        metadata:
+          labels:
+            app: dynflow-worker
+        spec:
+          securityContext: *podSecurity
+          containers:
+            - name: sidekiq
+              image: ghcr.io/slauger/foreman-operator-foreman:spike
+              imagePullPolicy: Always
+              command: ["sidekiq", "-e", "production", "-r", "./extras/dynflow-sidekiq.rb", "-C", "/etc/foreman/dynflow/worker.yml"]
+              env: *foremanEnv
+              securityContext: *containerSecurity
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 512Mi
+                limits:
+                  memory: 1Gi
+              volumeMounts: *foremanMounts
+          volumes: *foremanVolumes
   - apiVersion: v1
     kind: Service
     metadata:

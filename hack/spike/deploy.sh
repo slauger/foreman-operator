@@ -48,6 +48,8 @@ for _ in $(seq 1 120); do
 done
 kubectl -n "${NAMESPACE}" wait --for=condition=Complete job/foreman-migrate --timeout=1s
 
-kubectl -n "${NAMESPACE}" rollout restart deployment/foreman-web
+kubectl -n "${NAMESPACE}" rollout restart deployment/foreman-web deployment/dynflow-orchestrator deployment/dynflow-worker
+kubectl -n "${NAMESPACE}" rollout status deployment/dynflow-orchestrator --timeout=600s
+kubectl -n "${NAMESPACE}" rollout status deployment/dynflow-worker --timeout=600s
 kubectl -n "${NAMESPACE}" rollout status deployment/foreman-web --timeout=900s
 kubectl -n "${NAMESPACE}" rollout status deployment/frontend --timeout=300s

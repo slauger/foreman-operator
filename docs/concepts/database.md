@@ -41,4 +41,4 @@ Use CloudNativePG continuous backups and `ScheduledBackup`. A restore also needs
 
 ## Valkey
 
-Foreman also needs Valkey for the Rails cache and for Dynflow. The operator consumes an existing instance through `spec.valkey`. `foremanctl` uses database 4 for the cache and 6 for Dynflow.
+Foreman also needs Valkey for the Rails cache and for Dynflow, which makes it a required dependency. The operator consumes an existing instance through `spec.valkey`. `foremanctl` uses database 4 for the cache and 6 for Dynflow.

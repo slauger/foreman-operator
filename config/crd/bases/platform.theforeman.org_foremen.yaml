@@ -27,7 +27,7 @@ spec:
       openAPIV3Schema:
         description: |-
           Foreman is the Schema for the foremen API.
-          It owns the Foreman web workload, optional Dynflow workloads, and recurring tasks.
+          It owns the Foreman web workload, the Dynflow workloads, and recurring tasks.
         properties:
           apiVersion:
             description: |-
@@ -77,12 +77,14 @@ spec:
                 - cluster
                 type: object
               dynflow:
-                description: Dynflow enables the task workloads when set.
+                default: {}
+                description: Dynflow configures the task workloads. Foreman uses Dynflow
+                  as its ActiveJob backend.
                 properties:
                   hostsQueueReplicas:
-                    default: 1
+                    default: 0
                     description: HostsQueueReplicas is the number of workers for the
-                      hosts queue.
+                      hosts queue, used by Remote Execution.
                     format: int32
                     minimum: 0
                     type: integer

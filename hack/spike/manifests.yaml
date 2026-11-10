@@ -203,6 +203,11 @@ items:
                     secretKeyRef:
                       name: foreman-secrets
                       key: encryption-key
+                - name: SECRET_KEY_BASE
+                  valueFrom:
+                    secretKeyRef:
+                      name: foreman-secrets
+                      key: secret-key-base
                 - name: SEED_ADMIN_USER
                   value: admin
                 - name: SEED_ADMIN_PASSWORD

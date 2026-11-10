@@ -48,6 +48,7 @@ const (
 // +kubebuilder:validation:XValidation:rule="self.profile != 'Provisioning' || (!has(self.features.remoteExecutionSSH) && !has(self.features.ansible))",message="the Provisioning profile does not support remoteExecutionSSH or ansible"
 // +kubebuilder:validation:XValidation:rule="!(has(self.features.dhcp) && self.features.dhcp.provider == 'dnsmasq') || (has(self.networks) && size(self.networks) > 0)",message="the dnsmasq provider requires at least one network"
 // +kubebuilder:validation:XValidation:rule="!(has(self.features.dhcp) && self.features.dhcp.provider == 'dnsmasq') || size(self.features.dhcp.subnets) == 1",message="the dnsmasq provider supports exactly one subnet per SmartProxy"
+// +kubebuilder:validation:XValidation:rule="!(has(self.features.dhcp) && self.features.dhcp.provider == 'dnsmasq') || self.features.dhcp.subnets.all(s, has(s.range))",message="the dnsmasq provider requires a range"
 type SmartProxySpec struct {
 	// ForemanRef names the Foreman this proxy registers with.
 	// +kubebuilder:validation:MinLength=1
@@ -66,10 +67,6 @@ type SmartProxySpec struct {
 
 	// TLS selects the source of the server and client certificates.
 	TLS TLSSpec `json:"tls"`
-
-	// OAuthSecretRef names the Secret with "consumer-key" and "consumer-secret" for registration.
-	// +kubebuilder:validation:MinLength=1
-	OAuthSecretRef string `json:"oauthSecretRef"`
 
 	// Networks attaches the pod to secondary networks through Multus.
 	// +optional
@@ -138,6 +135,9 @@ type TFTPFeature struct {
 	// ServerName overrides the TFTP server name announced to hosts.
 	// +optional
 	ServerName string `json:"serverName,omitempty"`
+	// BootFiles selects the image whose PXE boot loaders are copied into the TFTP root.
+	// +optional
+	BootFiles ImageSpec `json:"bootFiles,omitempty"`
 }
 
 // TemplatesFeature configures the template endpoint for hosts being built.
@@ -173,9 +173,16 @@ type DHCPSubnet struct {
 	// +kubebuilder:validation:MinLength=1
 	Network string `json:"network"`
 
-	// Range is the dynamic range as "first-last".
+	// Range is the dynamic range as "first-last". Without it, only reserved hosts get an address.
+	// +kubebuilder:validation:Pattern=`^[0-9.]+-[0-9.]+$`
 	// +optional
 	Range string `json:"range,omitempty"`
+	// Gateway is announced as the default router. Without it, no router is announced.
+	// +optional
+	Gateway string `json:"gateway,omitempty"`
+	// DNSServers are announced to hosts.
+	// +optional
+	DNSServers []string `json:"dnsServers,omitempty"`
 }
 
 // DNSFeature configures DNS.
@@ -239,6 +246,9 @@ type SmartProxyStatus struct {
 	// ForemanID is the identifier assigned by Foreman on registration.
 	// +optional
 	ForemanID int64 `json:"foremanID,omitempty"`
+	// RegisteredGeneration is the generation whose features were last refreshed in Foreman.
+	// +optional
+	RegisteredGeneration int64 `json:"registeredGeneration,omitempty"`
 
 	// Conditions represent the latest observations.
 	// +listType=map

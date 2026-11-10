@@ -85,12 +85,23 @@ spec:
                         items:
                           description: DHCPSubnet describes one served subnet.
                           properties:
+                            dnsServers:
+                              description: DNSServers are announced to hosts.
+                              items:
+                                type: string
+                              type: array
+                            gateway:
+                              description: Gateway is announced as the default router.
+                                Without it, no router is announced.
+                              type: string
                             network:
                               description: Network is the subnet in CIDR notation.
                               minLength: 1
                               type: string
                             range:
                               description: Range is the dynamic range as "first-last".
+                                Without it, only reserved hosts get an address.
+                              pattern: ^[0-9.]+-[0-9.]+$
                               type: string
                           required:
                           - network
@@ -150,6 +161,31 @@ spec:
                   tftp:
                     description: TFTP enables the TFTP feature.
                     properties:
+                      bootFiles:
+                        description: BootFiles selects the image whose PXE boot loaders
+                          are copied into the TFTP root.
+                        properties:
+                          digest:
+                            description: Digest pins the image and takes precedence
+                              over Tag.
+                            pattern: ^sha256:[a-f0-9]{64}$
+                            type: string
+                          pullPolicy:
+                            default: IfNotPresent
+                            description: PullPolicy is the image pull policy.
+                            enum:
+                            - Always
+                            - IfNotPresent
+                            - Never
+                            type: string
+                          repository:
+                            description: Repository is the image repository. The operator
+                              picks a default if empty.
+                            type: string
+                          tag:
+                            description: Tag is the image tag.
+                            type: string
+                        type: object
                       serverName:
                         description: ServerName overrides the TFTP server name announced
                           to hosts.
@@ -203,11 +239,6 @@ spec:
                   - attachment
                   type: object
                 type: array
-              oauthSecretRef:
-                description: OAuthSecretRef names the Secret with "consumer-key" and
-                  "consumer-secret" for registration.
-                minLength: 1
-                type: string
               profile:
                 description: Profile selects the feature set and the required privileges.
                 enum:
@@ -327,7 +358,6 @@ spec:
             required:
             - features
             - foremanRef
-            - oauthSecretRef
             - profile
             - tls
             - url
@@ -346,6 +376,9 @@ spec:
             - message: the dnsmasq provider supports exactly one subnet per SmartProxy
               rule: '!(has(self.features.dhcp) && self.features.dhcp.provider == ''dnsmasq'')
                 || size(self.features.dhcp.subnets) == 1'
+            - message: the dnsmasq provider requires a range
+              rule: '!(has(self.features.dhcp) && self.features.dhcp.provider == ''dnsmasq'')
+                || self.features.dhcp.subnets.all(s, has(s.range))'
           status:
             description: SmartProxyStatus defines the observed state of SmartProxy.
             properties:
@@ -421,6 +454,11 @@ spec:
               phase:
                 description: Phase is the current lifecycle phase.
                 type: string
+              registeredGeneration:
+                description: RegisteredGeneration is the generation whose features
+                  were last refreshed in Foreman.
+                format: int64
+                type: integer
             type: object
         type: object
     served: true

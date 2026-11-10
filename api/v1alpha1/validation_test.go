@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"k8s.io/apimachinery/pkg/api/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -16,7 +15,8 @@ func issuerTLS() TLSSpec {
 
 func validForeman() *Foreman {
 	return &Foreman{
-		ObjectMeta: metav1.ObjectMeta{GenerateName: "test-foreman-", Namespace: "default"},
+		GenerateName: "test-foreman-",
+		Namespace:    "default",
 		Spec: ForemanSpec{
 			FQDN:     "foreman.example.com",
 			TLS:      issuerTLS(),
@@ -28,7 +28,8 @@ func validForeman() *Foreman {
 
 func validFrontend() *Frontend {
 	return &Frontend{
-		ObjectMeta: metav1.ObjectMeta{GenerateName: "test-frontend-", Namespace: "default"},
+		GenerateName: "test-frontend-",
+		Namespace:    "default",
 		Spec: FrontendSpec{
 			ForemanRef: "production",
 			TLS:        FrontendTLSSpec{Server: issuerTLS(), ClientCA: issuerTLS()},
@@ -38,7 +39,8 @@ func validFrontend() *Frontend {
 
 func validSmartProxy() *SmartProxy {
 	return &SmartProxy{
-		ObjectMeta: metav1.ObjectMeta{GenerateName: "test-proxy-", Namespace: "default"},
+		GenerateName: "test-proxy-",
+		Namespace:    "default",
 		Spec: SmartProxySpec{
 			ForemanRef:     "production",
 			Profile:        SmartProxyProfileProvisioning,

@@ -138,7 +138,8 @@ func frontendDeployment(fe *foremanv1alpha1.Frontend, images Images, caps Capabi
 				Annotations: map[string]string{checksumAnnotation: configChecksum},
 			},
 			Spec: corev1.PodSpec{
-				SecurityContext: podSecurityContext(caps.OpenShift),
+				EnableServiceLinks: new(false),
+				SecurityContext:    podSecurityContext(caps.OpenShift),
 				Containers: []corev1.Container{{
 					Name:            "httpd",
 					Image:           imageRef(fe.Spec.Image, images.Frontend, images.Tag),

@@ -128,6 +128,9 @@ func TestForemanInstallMigratesBeforeDeploying(t *testing.T) {
 	}
 
 	web := mustGet(t, c, "prod-web", &appsv1.Deployment{})
+	if links := web.Spec.Template.Spec.EnableServiceLinks; links == nil || *links {
+		t.Error("service links must be off, they inject FOREMAN_PORT into Puma")
+	}
 	if *web.Spec.Replicas != 2 {
 		t.Errorf("web replicas = %d, want 2", *web.Spec.Replicas)
 	}

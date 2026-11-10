@@ -404,10 +404,11 @@ func smartProxyDeployment(p *foremanv1alpha1.SmartProxy, images Images, caps Cap
 		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{Labels: labels, Annotations: annotations},
 			Spec: corev1.PodSpec{
-				SecurityContext: psc,
-				InitContainers:  bootFilesInitContainers(p, images),
-				Containers:      containers,
-				Volumes:         volumes,
+				EnableServiceLinks: new(false),
+				SecurityContext:    psc,
+				InitContainers:     bootFilesInitContainers(p, images),
+				Containers:         containers,
+				Volumes:            volumes,
 			},
 		},
 	}

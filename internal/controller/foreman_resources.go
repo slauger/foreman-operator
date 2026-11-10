@@ -240,6 +240,9 @@ func foremanPodSpec(f *foremanv1alpha1.Foreman, images Images, caps Capabilities
 	ctr.SecurityContext = restrictedContainerSecurityContext()
 	ctr.VolumeMounts = foremanVolumeMounts()
 	return corev1.PodSpec{
+		// Service links would inject FOREMAN_PORT for a Service named "foreman", which Puma
+		// reads as its listen port.
+		EnableServiceLinks:            new(false),
 		SecurityContext:               podSecurityContext(caps.OpenShift),
 		TerminationGracePeriodSeconds: new(int64(60)),
 		Containers:                    []corev1.Container{ctr},

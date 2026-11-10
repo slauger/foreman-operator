@@ -14,6 +14,8 @@ The focus of the first stages is Foreman with Smart Proxy. Versions are intended
 | v0.6 | Migration from existing installations | Rehearsal with a production-sized copy |
 | v0.7+ | Katello with `Candlepin`, `Pulp`, content proxies | Sync and host registration work |
 
+The MVP is v0.1 and v0.2: `Foreman`, `Frontend`, and `SmartProxy` with DHCP and TFTP, created only from custom resources. DHCP and TFTP can be tested only to a limited extent on the public e2e cluster. A real PXE build is planned on a dedicated VLAN in a homelab.
+
 ## Principles
 
 - **Spike before operator.** Whether DHCP and TFTP work in a pod on Multus is the largest unknown. It is answered before the API is fixed.

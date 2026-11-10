@@ -4,7 +4,7 @@
 
 | Check | Command |
 |---|---|
-| Unit tests | `make test` |
+| Unit tests and CEL validation with envtest | `make test` |
 | Linting | `make lint` |
 | Generated files | `make check-manifests` |
 | Vulnerabilities | `make vulncheck` |
@@ -14,7 +14,6 @@
 
 ## Not available yet
 
-- CEL validation against an API server, for example with envtest
 - End-to-end tests on Kind and k3s
 - Qualification on OpenShift
 - A PXE build test on a real L2 network

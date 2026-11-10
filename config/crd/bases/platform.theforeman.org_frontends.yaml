@@ -61,8 +61,28 @@ spec:
                     description: Annotations are added to the created Service or Route.
                     type: object
                   gatewayRef:
-                    description: GatewayRef names the Gateway for type TLSRoute.
-                    type: string
+                    description: GatewayRef selects the Gateway and listeners for
+                      type TLSRoute.
+                    properties:
+                      httpSectionName:
+                        description: HTTPSectionName is the listener for the HTTPRoute
+                          used by installers.
+                        type: string
+                      name:
+                        description: Name of the Gateway.
+                        minLength: 1
+                        type: string
+                      namespace:
+                        description: Namespace of the Gateway. Defaults to the namespace
+                          of the Frontend.
+                        type: string
+                      tlsSectionName:
+                        description: TLSSectionName is the listener with TLS passthrough
+                          for the TLSRoute.
+                        type: string
+                    required:
+                    - name
+                    type: object
                   type:
                     default: Auto
                     description: Type selects the exposure mechanism.

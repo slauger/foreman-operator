@@ -85,13 +85,32 @@ type FrontendExposureSpec struct {
 	// +kubebuilder:default=Auto
 	Type FrontendExposureType `json:"type,omitempty"`
 
-	// GatewayRef names the Gateway for type TLSRoute.
+	// GatewayRef selects the Gateway and listeners for type TLSRoute.
 	// +optional
-	GatewayRef string `json:"gatewayRef,omitempty"`
+	GatewayRef *GatewayReference `json:"gatewayRef,omitempty"`
 
 	// Annotations are added to the created Service or Route.
 	// +optional
 	Annotations map[string]string `json:"annotations,omitempty"`
+}
+
+// GatewayReference selects a Gateway and its listeners.
+type GatewayReference struct {
+	// Name of the Gateway.
+	// +kubebuilder:validation:MinLength=1
+	Name string `json:"name"`
+
+	// Namespace of the Gateway. Defaults to the namespace of the Frontend.
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+
+	// TLSSectionName is the listener with TLS passthrough for the TLSRoute.
+	// +optional
+	TLSSectionName string `json:"tlsSectionName,omitempty"`
+
+	// HTTPSectionName is the listener for the HTTPRoute used by installers.
+	// +optional
+	HTTPSectionName string `json:"httpSectionName,omitempty"`
 }
 
 // FrontendStatus defines the observed state of Frontend.

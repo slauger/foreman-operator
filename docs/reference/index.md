@@ -9,7 +9,7 @@ All resources use the API group `platform.theforeman.org/v1alpha1`.
 | SmartProxy | [SmartProxy](smartproxy.md) |
 
 !!! note
-    The generated schemas are in `config/crd/bases`. CEL validation rules have not been tested against an API server yet.
+    The generated schemas are in `config/crd/bases`. CEL validation rules are tested against an API server with envtest.
 
 ## Common types
 

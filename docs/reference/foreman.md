@@ -13,7 +13,7 @@
 | `database.cluster.credentialsSecretRef` | string | No | `<name>-app` | Overrides the credentials Secret |
 | `valkey.host` | string | Yes | | Valkey host |
 | `valkey.port` | integer | No | `6379` | Valkey port |
-| `encryptionKeySecretRef` | string | Yes | | Secret with `encryption-key` |
+| `secretsRef` | string | No | `<name>-secrets` | Secret with `encryption-key`, `secret-key-base`, and `admin-password`, created with generated values if missing |
 | `web.replicas` | integer | No | `2` | Web pods |
 | `web.resources` | ResourceRequirements | No | | Compute resources |
 | `dynflow.workerReplicas` | integer | No | `1` | General workers |

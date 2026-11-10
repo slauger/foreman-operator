@@ -10,7 +10,10 @@
 | `tls.server` | [tls](index.md#tls) | Yes | | Certificate presented to clients |
 | `tls.clientCA` | [tls](index.md#tls) | Yes | | CA that verifies client certificates |
 | `exposure.type` | string | No | `Auto` | `Auto`, `LoadBalancer`, `Route`, `TLSRoute`, or `ClusterIP` |
-| `exposure.gatewayRef` | string | For `TLSRoute` | | Gateway name |
+| `exposure.gatewayRef.name` | string | For `TLSRoute` | | Gateway name |
+| `exposure.gatewayRef.namespace` | string | No | Frontend namespace | Gateway namespace |
+| `exposure.gatewayRef.tlsSectionName` | string | No | | Listener with TLS passthrough |
+| `exposure.gatewayRef.httpSectionName` | string | No | | Listener for installers |
 | `exposure.annotations` | map | No | | Added to the created Service or Route |
 
 ## Status

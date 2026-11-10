@@ -14,7 +14,6 @@ spec:
       name: foreman-db
   valkey:
     host: valkey
-  encryptionKeySecretRef: foreman-encryption-key
   web:
     replicas: 2
     resources:

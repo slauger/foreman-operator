@@ -1,5 +1,7 @@
 CONTROLLER_GEN = go tool controller-gen
 GOVULNCHECK = go tool govulncheck
+SETUP_ENVTEST = go tool setup-envtest
+ENVTEST_K8S_VERSION ?= 1.37.0
 # GNU sed (on macOS: brew install gnu-sed)
 SED ?= $(shell which gsed 2>/dev/null || echo sed)
 PYTHON ?= python3
@@ -32,7 +34,7 @@ vet: ## Run go vet.
 
 .PHONY: test
 test: manifests generate fmt vet ## Run tests.
-	go test ./... -coverprofile cover.out
+	KUBEBUILDER_ASSETS="$$($(SETUP_ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test ./... -coverprofile cover.out
 
 ##@ Quality
 

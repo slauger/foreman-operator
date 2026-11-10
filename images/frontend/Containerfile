@@ -1,0 +1,27 @@
+# Rootless TLS frontend on UBI 9 for Kubernetes/OpenShift
+FROM registry.access.redhat.com/ubi9/ubi:9.8-1793861509
+
+LABEL org.opencontainers.image.title="foreman-frontend" \
+      org.opencontainers.image.description="Rootless Apache frontend for Foreman on Kubernetes/OpenShift (experimental, unofficial)" \
+      org.opencontainers.image.source="https://github.com/slauger/foreman-operator" \
+      org.opencontainers.image.licenses="Apache-2.0"
+
+RUN dnf install -y --nodocs httpd mod_ssl \
+    && dnf clean all
+
+# The site configuration is mounted at runtime.
+RUN rm -f /etc/httpd/conf.d/*.conf \
+    && sed -i -e 's/^Listen 80$/Listen 8080/' \
+              -e 's#^ErrorLog .*#ErrorLog /dev/stderr#' \
+              -e 's#CustomLog "logs/access_log" combined#CustomLog /dev/stdout combined#' \
+              /etc/httpd/conf/httpd.conf \
+    && echo 'PidFile /tmp/httpd.pid' >> /etc/httpd/conf/httpd.conf \
+    && mkdir -p /run/httpd \
+    && chgrp -R 0 /run/httpd /var/log/httpd \
+    && chmod -R g=u /run/httpd /var/log/httpd
+
+ENV HOME=/tmp
+
+USER 1001:0
+EXPOSE 8080 8443
+CMD ["/usr/sbin/httpd", "-DFOREGROUND"]

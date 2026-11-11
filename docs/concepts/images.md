@@ -1,7 +1,7 @@
 # Container Images
 
 !!! note "Status"
-    Implemented. CI builds all images below. The Foreman and Frontend images run on the E2E cluster. The Smart Proxy and boot-files images were only tested with Docker so far.
+    Implemented. CI builds all images below. All images run on the E2E cluster.
 
 The upstream Foreman images are based on CentOS Stream 10, declare named users, and have no permissions for random UIDs. This project builds its own images on UBI 9, from `images/<name>/Containerfile`.
 

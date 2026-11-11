@@ -31,13 +31,13 @@ chainsaw test --config tests/e2e/chainsaw-config.yaml tests/e2e/mvp
 |---|---|---|
 | Foreman migrates and runs | Phase `Running` after the migration Job | Yes |
 | Frontend serves Foreman over the Gateway | Phase `Running`, `/api/v2/ping` through the TLSRoute | Yes |
-| Smart Proxy is registered with its features | Phase `Running`, `foremanID` set, features `DHCP DNS Logs TFTP Templates` in Foreman | Not yet run |
-| DHCP reservation reaches a client on the fake VLAN | A reservation created through the proxy API gives the client its address | Not yet run |
-| TFTP serves the boot loader | The client downloads `pxelinux.0` | Not yet run |
-| DNS record lands in BIND | A record created through the proxy API resolves | Not yet run |
-| Deleting the Smart Proxy removes it from Foreman | The finalizer unregisters the proxy | Not yet run |
+| Smart Proxy is registered with its features | Phase `Running`, `foremanID` set, features `DHCP DNS Logs TFTP Templates` in Foreman | Passed |
+| DHCP reservation reaches a client on the fake VLAN | A reservation created through the proxy API gives the client its address | Passed |
+| TFTP serves the boot loader | The client downloads `pxelinux.0` | Passed |
+| DNS record lands in BIND | A record created through the proxy API resolves | Passed |
+| Deleting the Smart Proxy removes it from Foreman | The finalizer unregisters the proxy | Passed |
 
-Independent of the Chainsaw steps, the OAuth signature of the operator was verified against the real Foreman on the cluster: correctly signed requests are accepted and wrongly signed requests are rejected. The Smart Proxy and boot-files images were only tested with Docker.
+Independent of the Chainsaw steps, the OAuth signature of the operator was verified against the real Foreman on the cluster: correctly signed requests are accepted and wrongly signed requests are rejected. The full test passes on e2e-openvox both against an existing installation and from scratch, with a new namespace and an empty database.
 
 ## PXE lab
 

@@ -15,8 +15,8 @@ A Kubernetes Operator that maps [Foreman](https://theforeman.org/) and Smart Pro
 | CRD types and generated CRDs | Implemented, validation tested with envtest |
 | `Foreman` controller | Implemented, migration, web, and Dynflow verified on a k3s cluster |
 | `Frontend` controller | Implemented, verified on a k3s cluster through a Gateway API TLSRoute |
-| `SmartProxy` controller | Implemented, covered by the E2E test, not yet run on a cluster |
-| Container images | Built by CI, unsigned while the repository is private; the Smart Proxy image was only tested with Docker |
+| `SmartProxy` controller | Implemented, E2E test passes on k3s with a fake VLAN |
+| Container images | Built by CI, public on GHCR, unsigned while the repository is private |
 | Helm chart for the operator | Implemented, not published to a registry yet |
 | CloudNativePG chart | Implemented, used by the E2E setup |
 | OpenShift | Not qualified |
@@ -133,7 +133,7 @@ See [Contributing](CONTRIBUTING.md).
 | Chart | helm-unittest | `make helm-unittest` |
 | End to end | Chainsaw test `tests/e2e/mvp` on a k3s cluster with Multus, cert-manager, CloudNativePG, and Envoy Gateway | `tests/e2e/setup.sh`, then `chainsaw test` |
 
-CI enforces a total coverage of at least 60 percent. On the E2E cluster, the Foreman migration, web, Dynflow, the Frontend through a Gateway API TLSRoute, and OAuth against a real Foreman are verified. The Smart Proxy pod, its registration, and DHCP, TFTP, and DNS are covered by the E2E test but have not been run yet. See [Testing](docs/development/testing.md).
+CI enforces a total coverage of at least 60 percent. The Chainsaw E2E test passes on a k3s cluster with cert-manager, CloudNativePG, Multus, and Envoy Gateway, both against an existing installation and from scratch.
 
 ## Supply Chain Security
 

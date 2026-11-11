@@ -26,7 +26,7 @@ Start with [Getting Started](guides/getting-started.md) to install the operator,
 
 ## What is verified
 
-On a k3s cluster with cert-manager, CloudNativePG, Multus, and Envoy Gateway, the Foreman migration, the web and Dynflow workloads, the Frontend through a Gateway API TLSRoute (`/api/v2/ping`), and the OAuth signature of the operator against a real Foreman are verified. The Smart Proxy pod, its registration, and DHCP, TFTP, and DNS are covered by the E2E test but have not been run on a cluster yet. See [Testing](development/testing.md).
+On a k3s cluster with cert-manager, CloudNativePG, Multus, and Envoy Gateway, the Chainsaw E2E test passes from an empty namespace: the Foreman migration, the web and Dynflow workloads, the Frontend through a Gateway API TLSRoute, the Smart Proxy registration with the features DHCP, DNS, Logs, Templates, and TFTP, a DHCP reservation that reaches a client on a fake VLAN, a TFTP download of the boot loader, a DNS record in BIND through nsupdate, and unregistration on delete. Not tested: a real VLAN, a real NIC, real PXE firmware, and OpenShift.
 
 ## Scope
 

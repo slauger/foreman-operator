@@ -246,9 +246,10 @@ type SmartProxyStatus struct {
 	// ForemanID is the identifier assigned by Foreman on registration.
 	// +optional
 	ForemanID int64 `json:"foremanID,omitempty"`
-	// RegisteredGeneration is the generation whose features were last refreshed in Foreman.
+	// RegisteredChecksum identifies the URL, configuration, and certificate whose features were
+	// last refreshed in Foreman. A change triggers a refresh.
 	// +optional
-	RegisteredGeneration int64 `json:"registeredGeneration,omitempty"`
+	RegisteredChecksum string `json:"registeredChecksum,omitempty"`
 
 	// Conditions represent the latest observations.
 	// +listType=map

@@ -143,7 +143,7 @@ func (r *SmartProxyReconciler) reconcile(ctx context.Context, p *foremanv1alpha1
 		return ctrl.Result{RequeueAfter: requeueShort}, nil
 	}
 
-	if err := r.register(ctx, p, f); err != nil {
+	if err := r.register(ctx, p, f, checksum(p.Spec.URL, d.Spec.Template.Annotations[checksumAnnotation])); err != nil {
 		p.Status.Phase = string(foremanv1alpha1.ForemanPhaseProgressing)
 		setCondition(&p.Status.Conditions, p.Generation, foremanv1alpha1.ConditionReady, metav1.ConditionFalse, reasonRegistrationFail, err.Error())
 		// Foreman reaches the proxy only once its certificate and Service are in place.
@@ -251,8 +251,9 @@ func (r *SmartProxyReconciler) apiFor(ctx context.Context, f *foremanv1alpha1.Fo
 	return r.NewAPI(baseURL, foremanPublicURL(f), key, secretValue)
 }
 
-// register creates or updates the proxy in Foreman and refreshes its features after changes.
-func (r *SmartProxyReconciler) register(ctx context.Context, p *foremanv1alpha1.SmartProxy, f *foremanv1alpha1.Foreman) error {
+// register creates or updates the proxy in Foreman. Foreman reads the features only on
+// registration and refresh, so every change of URL, configuration, or certificate refreshes.
+func (r *SmartProxyReconciler) register(ctx context.Context, p *foremanv1alpha1.SmartProxy, f *foremanv1alpha1.Foreman, registration string) error {
 	log := logf.FromContext(ctx)
 	api, err := r.apiFor(ctx, f)
 	if err != nil {
@@ -269,7 +270,7 @@ func (r *SmartProxyReconciler) register(ctx context.Context, p *foremanv1alpha1.
 			}
 			log.Info("registered smart proxy in Foreman", "id", created.ID)
 			p.Status.ForemanID = created.ID
-			p.Status.RegisteredGeneration = p.Generation
+			p.Status.RegisteredChecksum = registration
 			return nil
 		case err != nil:
 			return err
@@ -278,7 +279,7 @@ func (r *SmartProxyReconciler) register(ctx context.Context, p *foremanv1alpha1.
 		}
 	}
 
-	if p.Status.RegisteredGeneration == p.Generation {
+	if p.Status.RegisteredChecksum == registration {
 		return nil
 	}
 	if err := api.UpdateSmartProxy(ctx, p.Status.ForemanID, p.Name, p.Spec.URL); err != nil {
@@ -292,7 +293,7 @@ func (r *SmartProxyReconciler) register(ctx context.Context, p *foremanv1alpha1.
 		return err
 	}
 	log.Info("refreshed smart proxy features in Foreman", "id", p.Status.ForemanID)
-	p.Status.RegisteredGeneration = p.Generation
+	p.Status.RegisteredChecksum = registration
 	return nil
 }
 

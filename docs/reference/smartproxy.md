@@ -53,7 +53,7 @@ Networks are attached as `net1` to `netN` in list order. Only the first network 
 | `observedGeneration` | integer | Last processed generation |
 | `phase` | string | `Pending`, `Progressing`, `Running`, or `Failed` |
 | `foremanID` | integer | Identifier assigned by Foreman |
-| `registeredGeneration` | integer | Generation whose features were last refreshed in Foreman |
+| `registeredChecksum` | string | URL, configuration, and certificate whose features were last refreshed in Foreman |
 | `conditions` | []Condition | See [Conditions](index.md#conditions) |
 
 ## Created objects

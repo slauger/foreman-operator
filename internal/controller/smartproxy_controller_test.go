@@ -314,8 +314,8 @@ func TestSmartProxyRegistersAndRefreshes(t *testing.T) {
 	if len(api.refreshed) != 1 || api.proxies["pxe"].URL != "https://pxe2.foreman.svc:8443" {
 		t.Errorf("refreshed = %v, url = %s", api.refreshed, api.proxies["pxe"].URL)
 	}
-	if got.Status.RegisteredGeneration != got.Generation {
-		t.Errorf("registered generation = %d, want %d", got.Status.RegisteredGeneration, got.Generation)
+	if got.Status.RegisteredChecksum == "" {
+		t.Error("registered checksum not recorded")
 	}
 }
 
@@ -414,5 +414,32 @@ func TestProxyEndpoint(t *testing.T) {
 		if err != nil || host != tt.host || port != tt.port {
 			t.Errorf("%s: host = %s, port = %d, err = %v", tt.url, host, port, err)
 		}
+	}
+}
+
+func TestSmartProxyRefreshesOnConfigChange(t *testing.T) {
+	f, secrets := readyForeman()
+	c := newTestClient(f, secrets, testSmartProxy())
+	api := newFakeForemanAPI()
+	r := newSmartProxyReconciler(c, api)
+	reconcileSmartProxy(t, r)
+	markDeploymentAvailable(t, c, "pxe")
+	reconcileSmartProxy(t, r)
+	if len(api.refreshed) != 0 {
+		t.Fatalf("refreshed = %v right after registration", api.refreshed)
+	}
+
+	// A changed Foreman FQDN changes trusted_hosts in the proxy configuration, not the
+	// SmartProxy generation, and must still refresh the features in Foreman.
+	f = mustGet(t, c, "prod", &foremanv1alpha1.Foreman{})
+	f.Spec.FQDN = "foreman2.example.com"
+	if err := c.Update(context.Background(), f); err != nil {
+		t.Fatal(err)
+	}
+	reconcileSmartProxy(t, r)
+	markDeploymentAvailable(t, c, "pxe")
+	reconcileSmartProxy(t, r)
+	if len(api.refreshed) != 1 {
+		t.Errorf("refreshed = %v, want one refresh", api.refreshed)
 	}
 }

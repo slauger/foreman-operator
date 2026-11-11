@@ -455,11 +455,11 @@ spec:
               phase:
                 description: Phase is the current lifecycle phase.
                 type: string
-              registeredGeneration:
-                description: RegisteredGeneration is the generation whose features
-                  were last refreshed in Foreman.
-                format: int64
-                type: integer
+              registeredChecksum:
+                description: |-
+                  RegisteredChecksum identifies the URL, configuration, and certificate whose features were
+                  last refreshed in Foreman. A change triggers a refresh.
+                type: string
             type: object
         type: object
     served: true

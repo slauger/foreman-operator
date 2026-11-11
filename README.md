@@ -14,7 +14,7 @@ A Kubernetes Operator that maps [Foreman](https://theforeman.org/) and Smart Pro
 |---|---|
 | CRD types and generated CRDs | Implemented, validation tested with envtest |
 | `Foreman` controller | Implemented, migration, web, and Dynflow verified on a k3s cluster |
-| Frontend (`Foreman.spec.frontend`) | Implemented as a sidecar in the web pods and covered by the E2E test. Verified through a Gateway API TLSRoute only as the earlier separate `Frontend` kind |
+| Frontend (`Foreman.spec.frontend`) | Implemented as a sidecar in the web pods. Verified through a Gateway API TLSRoute in the E2E test |
 | `SmartProxy` controller | Implemented, E2E test passes on k3s with a fake VLAN |
 | Container images | Built by CI, public on GHCR, unsigned while the repository is private |
 | Helm chart for the operator | Implemented, not published to a registry yet |
@@ -134,7 +134,7 @@ See [Contributing](CONTRIBUTING.md).
 | Chart | helm-unittest | `make helm-unittest` |
 | End to end | Chainsaw test `tests/e2e/mvp` on a k3s cluster with Multus, cert-manager, CloudNativePG, and Envoy Gateway | `tests/e2e/setup.sh`, then `chainsaw test` |
 
-CI enforces a total coverage of at least 60 percent. The Chainsaw E2E test passed on a k3s cluster with cert-manager, CloudNativePG, Multus, and Envoy Gateway, both against an existing installation and from scratch, with the earlier separate `Frontend`. A run with the frontend sidecar is not recorded yet.
+CI enforces a total coverage of at least 60 percent. The Chainsaw E2E test passed on a k3s cluster with cert-manager, CloudNativePG, Multus, and Envoy Gateway, both against an existing installation and from scratch.
 
 ## Supply Chain Security
 

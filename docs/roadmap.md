@@ -6,7 +6,7 @@ The focus of the first stages is Foreman with Smart Proxy. Versions are intended
 |---|---|---|---|
 | v0.0 Docs | Repository, documentation, CRD types | This page is online | Done |
 | v0.0 Spike | Manual manifests on k3s, `frontend` image, dnsmasq next to an unprivileged proxy, UBI 9 Foreman and proxy images | A test client gets a lease and a boot file over Multus | Done on a single-node bridge, see [Testing](development/testing.md#pxe-lab) |
-| v0.1 | Operator with `Foreman` and its frontend, Dynflow, cert-manager, CloudNativePG, migration before rollout | Foreman runs, login and API work | Implemented as MVP, verified on k3s through a Gateway API TLSRoute with the earlier separate `Frontend`. The frontend is now a sidecar in the web pods |
+| v0.1 | Operator with `Foreman` and its frontend, Dynflow, cert-manager, CloudNativePG, migration before rollout | Foreman runs, login and API work | Implemented as MVP, verified on k3s through a Gateway API TLSRoute, with the frontend as a sidecar in the web pods |
 | v0.2 | `SmartProxy` profile `Provisioning`, registration, DHCP, TFTP, DNS | A complete PXE build on k3s, driven only by custom resources | Implemented as MVP, E2E test passes on k3s with a fake VLAN |
 | v0.3 | OpenShift qualification, dedicated SCC for the proxy | The same PXE build on OpenShift | Open |
 | v0.4 | Hosts queue, profile `Execution`, plugin catalog, recurring tasks | Remote Execution works, plugin activation runs through a migration | Open |

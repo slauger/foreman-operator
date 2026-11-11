@@ -85,8 +85,11 @@ spec:
               set -e
               mac="$(kubectl -n foreman-e2e exec pxe-client -- cat /sys/class/net/net1/address | tr -d '\r')"
               # Foreman's own client certificate, as Foreman would call the proxy.
-              kubectl -n foreman-e2e exec deploy/foreman-web -c foreman -- curl -sf \
-                --cert /etc/foreman/tls/tls.crt --key /etc/foreman/tls/tls.key --cacert /etc/foreman/tls/ca.crt \
+              tls="--cert /etc/foreman/tls/tls.crt --key /etc/foreman/tls/tls.key --cacert /etc/foreman/tls/ca.crt"
+              # The volume keeps the reservation of an earlier run, which would reject a new one.
+              kubectl -n foreman-e2e exec deploy/foreman-web -c foreman -- curl -s ${tls} -o /dev/null \
+                -X DELETE "https://pxe.foreman-e2e.svc:8443/dhcp/10.99.0.0/mac/${mac}"
+              kubectl -n foreman-e2e exec deploy/foreman-web -c foreman -- curl -sf ${tls} \
                 -X POST https://pxe.foreman-e2e.svc:8443/dhcp/10.99.0.0 \
                 -d mac="${mac}" -d ip=10.99.0.50 -d hostname=host1.lab.test -d filename=pxelinux.0 -d nextServer=10.99.0.10 >/dev/null
               sleep 3

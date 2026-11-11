@@ -1,7 +1,7 @@
 # Traffic Flow
 
 !!! note "Status"
-    Implemented. Exposure through a Gateway API TLSRoute was verified on the E2E cluster with Envoy Gateway (`/api/v2/ping`) with the earlier separate `Frontend`. The sidecar layout is covered by the E2E test, including that the web pod listens only on ports 8080 and 8443; a run is not recorded yet. `LoadBalancer`, `ClusterIP`, and `Route` are covered by controller tests only. `/pub` content is target design.
+    Implemented. Exposure through a Gateway API TLSRoute was verified on the E2E cluster with Envoy Gateway (`/api/v2/ping`), with the frontend as a sidecar. The E2E test also checks that the web pod listens only on ports 8080 and 8443, and the operator registers Smart Proxies through the frontend over HTTPS. `LoadBalancer`, `ClusterIP`, and `Route` are covered by controller tests only. `/pub` content is target design.
 
 ## Why a frontend
 

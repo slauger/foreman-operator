@@ -25,7 +25,7 @@ Start with [Getting Started](guides/getting-started.md) to install the operator,
 
 ## What is verified
 
-On a k3s cluster with cert-manager, CloudNativePG, Multus, and Envoy Gateway, the Chainsaw E2E test passed from an empty namespace with the earlier separate `Frontend`: the Foreman migration, the web and Dynflow workloads, the frontend through a Gateway API TLSRoute, the Smart Proxy registration with the features DHCP, DNS, Logs, Templates, and TFTP, a DHCP reservation that reaches a client on a fake VLAN, a TFTP download of the boot loader, a DNS record in BIND through nsupdate, and unregistration on delete. Not tested: a real VLAN, a real NIC, real PXE firmware, and OpenShift. The frontend now runs as a sidecar in the web pods; the E2E test covers this layout, a run is not recorded yet.
+On a k3s cluster with cert-manager, CloudNativePG, Multus, and Envoy Gateway, the Chainsaw E2E test passed from an empty namespace: the Foreman migration, the web and Dynflow workloads, the frontend sidecar through a Gateway API TLSRoute with Puma reachable only over its Unix socket, the Smart Proxy registration with the features BMC, DHCP, DNS, Logs, Templates, and TFTP, a DHCP reservation that reaches a client on a fake VLAN and survives a new pod, a TFTP download of the boot loader, a DNS record in BIND through nsupdate, and unregistration on delete. Not tested: a real VLAN, a real NIC, real PXE firmware, and OpenShift.
 
 ## Scope
 

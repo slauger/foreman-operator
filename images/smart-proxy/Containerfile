@@ -1,6 +1,16 @@
 # Rootless Foreman Smart Proxy on UBI 9 for Kubernetes/OpenShift.
 # The same image runs both containers of the proxy pod: the Smart Proxy (default CMD,
 # unprivileged) and dnsmasq (DHCP/TFTP, started as root through dnsmasq-supervisor).
+
+# ipmitool is in the RHEL 9 AppStream but not in UBI 9. The signed CentOS Stream 9 package
+# is verified here and installed in the final stage; its dependencies all come from UBI.
+FROM quay.io/centos/centos:stream9 AS ipmitool
+
+RUN mkdir /rpms \
+    && dnf download -q --destdir /rpms ipmitool \
+    && rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-centosofficial \
+    && rpm -K /rpms/ipmitool-*.rpm
+
 FROM registry.access.redhat.com/ubi9/ubi:9.8-1793861509
 
 ARG FOREMAN_VERSION=5.0
@@ -16,14 +26,16 @@ LABEL org.opencontainers.image.title="foreman-smart-proxy" \
 RUN groupadd -r -g 1001 foreman-proxy \
     && useradd -r -u 1001 -g foreman-proxy -d /usr/share/foreman-proxy -s /sbin/nologin foreman-proxy
 
-# foreman-proxy hard-requires rubygem-rubyipmi (needs ipmitool) and rubygem-ruby-libvirt
-# (needs libvirt-libs). Neither is in the UBI repos, and the BMC and libvirt providers are
-# never enabled here. All other dependencies come from the repos, then foreman-proxy and
-# the dnsmasq DHCP provider are installed without those two. The build fails if rpm reports
-# any other unsatisfied dependency. The plugins repo is unsigned upstream (gpgcheck=0), so
-# only the digests of the plugin RPM can be verified.
+COPY --from=ipmitool /rpms /tmp/ipmitool
+
+# foreman-proxy hard-requires rubygem-ruby-libvirt (needs libvirt-libs), which is not in the
+# UBI repos, and the libvirt providers are never enabled here. All other dependencies come
+# from the repos, then foreman-proxy and the dnsmasq DHCP provider are installed without it.
+# The build fails if rpm reports any other unsatisfied dependency. The plugins repo is
+# unsigned upstream (gpgcheck=0), so only the digests of the plugin RPM can be verified.
 RUN dnf install -y --nodocs "https://yum.theforeman.org/releases/${FOREMAN_VERSION}/el9/x86_64/foreman-release.rpm" \
     && dnf install -y --nodocs --setopt=install_weak_deps=0 \
+        /tmp/ipmitool/ipmitool-*.rpm 'rubygem(rubyipmi)' \
         dnsmasq bind-utils iproute util-linux-core sudo ruby rubygems \
         'rubygem(bundler_ext)' 'rubygem(concurrent-ruby)' 'rubygem(gssapi)' 'rubygem(json)' \
         'rubygem(jwt)' 'rubygem(logging)' 'rubygem(rack)' 'rubygem(rake)' 'rubygem(rb-inotify)' \
@@ -35,9 +47,9 @@ RUN dnf install -y --nodocs "https://yum.theforeman.org/releases/${FOREMAN_VERSI
     && rpm -K /tmp/rpms/foreman-proxy-*.rpm \
     && rpm -K --nosignature /tmp/rpms/rubygem-smart_proxy_dhcp_dnsmasq-*.rpm \
     && rpm -i --nodeps --excludedocs /tmp/rpms/*.rpm \
-    && rm -rf /tmp/rpms \
+    && rm -rf /tmp/rpms /tmp/ipmitool \
     && unsatisfied="$(rpm -V --nofiles --nodigest --noscripts foreman-proxy rubygem-smart_proxy_dhcp_dnsmasq \
-        | grep 'is needed by' | grep -v -e 'rubygem(ruby-libvirt)' -e 'rubygem(rubyipmi)' || true)" \
+        | grep 'is needed by' | grep -v -e 'rubygem(ruby-libvirt)' || true)" \
     && if [ -n "$unsatisfied" ]; then echo "$unsatisfied"; exit 1; fi \
     && dnf clean all
 

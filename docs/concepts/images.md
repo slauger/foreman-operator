@@ -27,7 +27,9 @@ The operator uses the tag of its `--default-image-tag` flag for every component 
 
 ## Smart Proxy image
 
-`foreman-proxy` hard-requires `rubygem-rubyipmi`, which needs `ipmitool`, and `rubygem-ruby-libvirt`, which needs `libvirt-libs`. Neither is in the UBI repositories. The image therefore installs all other dependencies from the repositories and then installs `foreman-proxy` and `rubygem-smart_proxy_dhcp_dnsmasq` with `rpm --nodeps`. The build fails if any other dependency is unsatisfied. As a result, the BMC providers based on `ipmitool` or `freeipmi` and the libvirt providers cannot be used.
+`ipmitool` is in the RHEL 9 AppStream but not in UBI 9. A build stage downloads the CentOS Stream 9 package and verifies its signature, and the final stage installs it. Its dependencies all come from UBI 9. `rubygem-rubyipmi` then installs from the Foreman repository. `freeipmi` is not included, because it pulls in `systemd`.
+
+`foreman-proxy` also hard-requires `rubygem-ruby-libvirt`, which needs `libvirt-libs` and is not in the UBI repositories. The image therefore installs all other dependencies from the repositories and then installs `foreman-proxy` and `rubygem-smart_proxy_dhcp_dnsmasq` with `rpm --nodeps`. The build fails if any other dependency is unsatisfied. The libvirt providers cannot be used.
 
 The Foreman plugins repository is unsigned upstream (`gpgcheck=0`), so only the digests of the dnsmasq plugin RPM are verified. `bind-utils` provides `nsupdate` for the DNS feature.
 
@@ -45,11 +47,12 @@ Checked against UBI 9 BaseOS, AppStream, and CodeReady Builder, plus the Foreman
 |---|---|
 | `foreman`, `foreman-service`, `foreman-postgresql`, `foreman-redis`, `foreman-dynflow-sidekiq` | Installed in the Foreman image |
 | `foreman_discovery`, `foreman_puppet`, `foreman_remote_execution` | Resolved, not installed yet |
-| `foreman-proxy` | Installed with `--nodeps`, without `rubygem-ruby-libvirt` and `rubygem-rubyipmi` |
+| `foreman-proxy` | Installed with `--nodeps`, without `rubygem-ruby-libvirt` |
+| `ipmitool` | Not in UBI 9, installed from CentOS Stream 9 |
 | `foreman-bootloaders-redhat` | GRUB and shim packages are missing, replaced by the boot-files image |
 | `foreman_bootdisk` | Open: five packages are missing |
 | `dnsmasq`, `httpd`, `mod_ssl`, `bind-utils` | In UBI 9 |
-| `dhcp-server`, `tftp-server`, `kea`, `freeipmi`, `ipmitool` | Not in UBI 9 |
+| `dhcp-server`, `tftp-server`, `kea`, `freeipmi` | Not in UBI 9 |
 
 UBI 10 has not been checked.
 

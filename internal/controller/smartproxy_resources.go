@@ -23,12 +23,16 @@ const (
 
 	proxyHTTPPort = 8000
 
-	proxyConfigDir    = "/etc/foreman-proxy"
-	proxyTLSDir       = "/etc/foreman-proxy/tls"
-	proxyDNSKeyDir    = "/etc/foreman-proxy/dns"
-	proxyDHCPDir      = "/var/lib/foreman-proxy/dhcp"
-	proxyTFTPRoot     = "/var/lib/tftpboot"
-	dnsmasqConfigDir  = "/etc/dnsmasq-foreman"
+	proxyConfigDir   = "/etc/foreman-proxy"
+	proxyTLSDir      = "/etc/foreman-proxy/tls"
+	proxyDNSKeyDir   = "/etc/foreman-proxy/dns"
+	proxyDHCPDir     = "/var/lib/foreman-proxy/dhcp"
+	proxyTFTPRoot    = "/var/lib/tftpboot"
+	dnsmasqConfigDir = "/etc/dnsmasq-foreman"
+	// Subdirectories of the data volume. The DHCP state lives outside the TFTP root, so
+	// reservations and leases are not served over TFTP.
+	dataTFTPSubPath   = "tftpboot"
+	dataDHCPSubPath   = "dhcp"
 	dnsmasqConfigFile = dnsmasqConfigDir + "/dnsmasq.conf"
 	// The proxy checks the lease file at startup, so it lives in the directory both share.
 	dnsmasqLeaseFile = proxyDHCPDir + "/dnsmasq.leases"
@@ -327,7 +331,6 @@ func smartProxyDeployment(p *foremanv1alpha1.SmartProxy, images Images, caps Cap
 			Items: moduleItems(config),
 		}},
 		{Name: "tls", Secret: &corev1.SecretVolumeSource{SecretName: smartProxyCertName(p)}},
-		{Name: "dhcp", EmptyDir: &corev1.EmptyDirVolumeSource{}},
 		{Name: "tmp", EmptyDir: &corev1.EmptyDirVolumeSource{}},
 	}
 	if p.Spec.Storage != nil {
@@ -341,8 +344,8 @@ func smartProxyDeployment(p *foremanv1alpha1.SmartProxy, images Images, caps Cap
 		{Name: "config", MountPath: proxyConfigDir + "/settings.yml", SubPath: "settings.yml", ReadOnly: true},
 		{Name: "settings-d", MountPath: proxyConfigDir + "/settings.d", ReadOnly: true},
 		{Name: "tls", MountPath: proxyTLSDir, ReadOnly: true},
-		{Name: "dhcp", MountPath: proxyDHCPDir},
-		{Name: "data", MountPath: proxyTFTPRoot},
+		{Name: "data", MountPath: proxyDHCPDir, SubPath: dataDHCPSubPath},
+		{Name: "data", MountPath: proxyTFTPRoot, SubPath: dataTFTPSubPath},
 		{Name: "tmp", MountPath: "/tmp"},
 	}
 	if dns := p.Spec.Features.DNS; dns != nil && dns.KeySecretRef != "" {
@@ -434,7 +437,7 @@ func bootFilesInitContainers(p *foremanv1alpha1.SmartProxy, images Images) []cor
 		ImagePullPolicy: pullPolicy(tftp.BootFiles),
 		SecurityContext: restrictedContainerSecurityContext(),
 		Resources:       defaultResources(corev1.ResourceRequirements{}, "10m", "16Mi", "64Mi"),
-		VolumeMounts:    []corev1.VolumeMount{{Name: "data", MountPath: proxyTFTPRoot}},
+		VolumeMounts:    []corev1.VolumeMount{{Name: "data", MountPath: proxyTFTPRoot, SubPath: dataTFTPSubPath}},
 	}}
 }
 
@@ -470,8 +473,8 @@ func dnsmasqContainer(p *foremanv1alpha1.SmartProxy, image string) corev1.Contai
 		Resources: defaultResources(corev1.ResourceRequirements{}, "10m", "32Mi", "128Mi"),
 		VolumeMounts: []corev1.VolumeMount{
 			{Name: "config", MountPath: dnsmasqConfigFile, SubPath: "dnsmasq.conf", ReadOnly: true},
-			{Name: "dhcp", MountPath: proxyDHCPDir},
-			{Name: "data", MountPath: proxyTFTPRoot, ReadOnly: true},
+			{Name: "data", MountPath: proxyDHCPDir, SubPath: dataDHCPSubPath},
+			{Name: "data", MountPath: proxyTFTPRoot, SubPath: dataTFTPSubPath, ReadOnly: true},
 		},
 	}
 }

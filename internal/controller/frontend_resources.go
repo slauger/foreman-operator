@@ -4,9 +4,7 @@ import (
 	"bytes"
 	"text/template"
 
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -16,31 +14,33 @@ import (
 )
 
 const (
-	frontendAppName   = "foreman-frontend"
-	componentFrontend = "frontend"
-
 	frontendHTTPSPort = 8443
 	frontendHTTPPort  = 8080
 
 	frontendServerMountPath   = "/etc/frontend/server"
 	frontendClientCAMountPath = "/etc/frontend/client-ca"
+
+	// pumaSocketDir is shared by Puma and Apache. Puma has no TCP listener, so only the
+	// frontend container in the same pod can reach it.
+	pumaSocketDir  = "/run/foreman"
+	pumaSocketPath = pumaSocketDir + "/puma.sock"
 )
 
 var routeGVK = schema.GroupVersionKind{Group: "route.openshift.io", Version: "v1", Kind: "Route"}
 
-func frontendServerCertName(fe *foremanv1alpha1.Frontend) string {
-	return tlsSecretName(fe.Spec.TLS.Server, fe.Name+"-server")
+func frontendServerCertName(f *foremanv1alpha1.Foreman) string {
+	return tlsSecretName(f.Spec.Frontend.TLS.Server, f.Name+"-server")
 }
 
 // frontendClientCAName is the Secret whose ca.crt verifies client certificates. With an
 // issuer, the operator requests a small certificate from it only to obtain the CA in ca.crt.
-func frontendClientCAName(fe *foremanv1alpha1.Frontend) string {
-	return tlsSecretName(fe.Spec.TLS.ClientCA, fe.Name+"-client-ca")
+func frontendClientCAName(f *foremanv1alpha1.Foreman) string {
+	return tlsSecretName(f.Spec.Frontend.TLS.ClientCA, f.Name+"-client-ca")
 }
 
 // exposureType resolves Auto for the current cluster.
-func exposureType(fe *foremanv1alpha1.Frontend, caps Capabilities) foremanv1alpha1.FrontendExposureType {
-	t := fe.Spec.Exposure.Type
+func exposureType(f *foremanv1alpha1.Foreman, caps Capabilities) foremanv1alpha1.FrontendExposureType {
+	t := f.Spec.Frontend.Exposure.Type
 	if t == "" || t == foremanv1alpha1.FrontendExposureAuto {
 		if caps.OpenShift {
 			return foremanv1alpha1.FrontendExposureRoute
@@ -78,8 +78,8 @@ SSLProtocol all -SSLv3 -TLSv1 -TLSv1.1
 
   ProxyPreserveHost On
   ProxyRequests Off
-  ProxyPass / {{ .Backend }}/ retry=0 timeout=900 upgrade=websocket
-  ProxyPassReverse / {{ .Backend }}/
+  ProxyPass / unix:{{ .Socket }}|http://localhost/ retry=0 timeout=900 upgrade=websocket
+  ProxyPassReverse / http://localhost/
 </VirtualHost>
 
 # Plain HTTP for installers and templates. It never carries client certificates.
@@ -94,8 +94,8 @@ SSLProtocol all -SSLv3 -TLSv1 -TLSv1.1
   RequestHeader set SSL-CLIENT-CERT ""
   RequestHeader set SSL-CLIENT-VERIFY ""
   ProxyPreserveHost On
-  ProxyPass / {{ .Backend }}/ retry=0 timeout=900
-  ProxyPassReverse / {{ .Backend }}/
+  ProxyPass / unix:{{ .Socket }}|http://localhost/ retry=0 timeout=900
+  ProxyPassReverse / http://localhost/
 </VirtualHost>
 `))
 
@@ -109,94 +109,78 @@ func frontendConfig(f *foremanv1alpha1.Foreman) (string, error) {
 		"HTTPPort":    frontendHTTPPort,
 		"ServerDir":   frontendServerMountPath,
 		"ClientCADir": frontendClientCAMountPath,
-		"Backend":     "http://" + foremanWebServiceName(f) + "." + f.Namespace + ".svc:3000",
+		"Socket":      pumaSocketPath,
 	})
 	return buf.String(), err
 }
 
-func frontendDeployment(fe *foremanv1alpha1.Frontend, images Images, caps Capabilities, configChecksum string) *appsv1.Deployment {
-	replicas := int32(2)
-	if fe.Spec.Replicas != nil {
-		replicas = *fe.Spec.Replicas
-	}
-	labels := commonLabels(frontendAppName, fe.Name, componentFrontend)
+// frontendContainer runs Apache next to Puma in every web pod.
+func frontendContainer(f *foremanv1alpha1.Foreman, images Images) corev1.Container {
 	probe := &corev1.Probe{
 		TCPSocket:     &corev1.TCPSocketAction{Port: intstr.FromString("https")},
 		PeriodSeconds: 10,
 	}
-
-	d := &appsv1.Deployment{}
-	d.Name = fe.Name
-	d.Namespace = fe.Namespace
-	d.Labels = labels
-	d.Spec = appsv1.DeploymentSpec{
-		Replicas: new(replicas),
-		Selector: &metav1.LabelSelector{MatchLabels: selectorLabels(frontendAppName, fe.Name, componentFrontend)},
-		Template: corev1.PodTemplateSpec{
-			ObjectMeta: metav1.ObjectMeta{
-				Labels:      labels,
-				Annotations: map[string]string{checksumAnnotation: configChecksum},
-			},
-			Spec: corev1.PodSpec{
-				EnableServiceLinks: new(false),
-				SecurityContext:    podSecurityContext(caps.OpenShift),
-				Containers: []corev1.Container{{
-					Name:            "httpd",
-					Image:           imageRef(fe.Spec.Image, images.Frontend, images.Tag),
-					ImagePullPolicy: pullPolicy(fe.Spec.Image),
-					Ports: []corev1.ContainerPort{
-						{Name: "https", ContainerPort: frontendHTTPSPort},
-						{Name: "http", ContainerPort: frontendHTTPPort},
-					},
-					SecurityContext: restrictedContainerSecurityContext(),
-					ReadinessProbe:  probe,
-					LivenessProbe:   probe,
-					Resources:       defaultResources(corev1.ResourceRequirements{}, "20m", "64Mi", "256Mi"),
-					VolumeMounts: []corev1.VolumeMount{
-						{Name: "config", MountPath: "/etc/httpd/conf.d", ReadOnly: true},
-						{Name: "server", MountPath: frontendServerMountPath, ReadOnly: true},
-						{Name: "client-ca", MountPath: frontendClientCAMountPath, ReadOnly: true},
-						{Name: "tmp", MountPath: "/tmp"},
-						{Name: "run", MountPath: "/run/httpd"},
-					},
-				}},
-				Volumes: []corev1.Volume{
-					{Name: "config", ConfigMap: &corev1.ConfigMapVolumeSource{
-						Name: fe.Name,
-					}},
-					{Name: "server", Secret: &corev1.SecretVolumeSource{SecretName: frontendServerCertName(fe)}},
-					{Name: "client-ca", Secret: &corev1.SecretVolumeSource{
-						SecretName: frontendClientCAName(fe),
-						Items:      []corev1.KeyToPath{{Key: "ca.crt", Path: "ca.crt"}},
-					}},
-					{Name: "tmp", EmptyDir: &corev1.EmptyDirVolumeSource{}},
-					{Name: "run", EmptyDir: &corev1.EmptyDirVolumeSource{}},
-				},
-			},
+	return corev1.Container{
+		Name:            "httpd",
+		Image:           imageRef(f.Spec.Frontend.Image, images.Frontend, images.Tag),
+		ImagePullPolicy: pullPolicy(f.Spec.Frontend.Image),
+		Ports: []corev1.ContainerPort{
+			{Name: "https", ContainerPort: frontendHTTPSPort},
+			{Name: "http", ContainerPort: frontendHTTPPort},
+		},
+		SecurityContext: restrictedContainerSecurityContext(),
+		ReadinessProbe:  probe,
+		LivenessProbe:   probe,
+		Resources:       defaultResources(f.Spec.Frontend.Resources, "20m", "64Mi", "256Mi"),
+		VolumeMounts: []corev1.VolumeMount{
+			{Name: "frontend-config", MountPath: "/etc/httpd/conf.d", ReadOnly: true},
+			{Name: "frontend-server", MountPath: frontendServerMountPath, ReadOnly: true},
+			{Name: "frontend-client-ca", MountPath: frontendClientCAMountPath, ReadOnly: true},
+			{Name: "puma-socket", MountPath: pumaSocketDir},
+			{Name: "tmp", MountPath: "/tmp"},
+			{Name: "httpd-run", MountPath: "/run/httpd"},
 		},
 	}
-	return d
 }
 
-func frontendService(fe *foremanv1alpha1.Frontend, caps Capabilities) *corev1.Service {
+// frontendVolumes are the volumes of the frontend container that Puma does not use.
+func frontendVolumes(f *foremanv1alpha1.Foreman) []corev1.Volume {
+	return []corev1.Volume{
+		{Name: "frontend-config", ConfigMap: &corev1.ConfigMapVolumeSource{
+			Name: foremanFrontendConfigName(f),
+		}},
+		{Name: "frontend-server", Secret: &corev1.SecretVolumeSource{SecretName: frontendServerCertName(f)}},
+		{Name: "frontend-client-ca", Secret: &corev1.SecretVolumeSource{
+			SecretName: frontendClientCAName(f),
+			Items:      []corev1.KeyToPath{{Key: "ca.crt", Path: "ca.crt"}},
+		}},
+		{Name: "puma-socket", EmptyDir: &corev1.EmptyDirVolumeSource{}},
+		{Name: "httpd-run", EmptyDir: &corev1.EmptyDirVolumeSource{}},
+	}
+}
+
+func foremanFrontendConfigName(f *foremanv1alpha1.Foreman) string { return f.Name + "-frontend" }
+
+// foremanWebService exposes the frontend containers of the web pods.
+func foremanWebService(f *foremanv1alpha1.Foreman, caps Capabilities) *corev1.Service {
 	svcType := corev1.ServiceTypeClusterIP
 	annotations := map[string]string(nil)
-	switch exposureType(fe, caps) {
+	switch exposureType(f, caps) {
 	case foremanv1alpha1.FrontendExposureLoadBalancer:
 		svcType = corev1.ServiceTypeLoadBalancer
-		annotations = fe.Spec.Exposure.Annotations
+		annotations = f.Spec.Frontend.Exposure.Annotations
 	case foremanv1alpha1.FrontendExposureClusterIP:
-		annotations = fe.Spec.Exposure.Annotations
+		annotations = f.Spec.Frontend.Exposure.Annotations
 	}
 
 	svc := &corev1.Service{}
-	svc.Name = fe.Name
-	svc.Namespace = fe.Namespace
-	svc.Labels = commonLabels(frontendAppName, fe.Name, componentFrontend)
+	svc.Name = foremanWebServiceName(f)
+	svc.Namespace = f.Namespace
+	svc.Labels = commonLabels(foremanAppName, f.Name, componentWeb)
 	svc.Annotations = annotations
 	svc.Spec = corev1.ServiceSpec{
 		Type:     svcType,
-		Selector: selectorLabels(frontendAppName, fe.Name, componentFrontend),
+		Selector: selectorLabels(foremanAppName, f.Name, componentWeb),
 		Ports: []corev1.ServicePort{
 			{Name: "https", Port: 443, TargetPort: intstr.FromString("https")},
 			{Name: "http", Port: 80, TargetPort: intstr.FromString("http")},
@@ -206,16 +190,16 @@ func frontendService(fe *foremanv1alpha1.Frontend, caps Capabilities) *corev1.Se
 }
 
 // frontendRoute passes TLS through to the frontend, so client certificates reach Apache.
-func frontendRoute(fe *foremanv1alpha1.Frontend, f *foremanv1alpha1.Foreman) *unstructured.Unstructured {
+func frontendRoute(f *foremanv1alpha1.Foreman) *unstructured.Unstructured {
 	u := &unstructured.Unstructured{}
 	u.SetGroupVersionKind(routeGVK)
-	u.SetName(fe.Name)
-	u.SetNamespace(fe.Namespace)
-	u.SetLabels(commonLabels(frontendAppName, fe.Name, componentFrontend))
-	u.SetAnnotations(fe.Spec.Exposure.Annotations)
+	u.SetName(f.Name)
+	u.SetNamespace(f.Namespace)
+	u.SetLabels(commonLabels(foremanAppName, f.Name, componentWeb))
+	u.SetAnnotations(f.Spec.Frontend.Exposure.Annotations)
 	u.Object["spec"] = map[string]any{
 		"host": f.Spec.FQDN,
-		"to":   map[string]any{"kind": "Service", "name": fe.Name},
+		"to":   map[string]any{"kind": "Service", "name": foremanWebServiceName(f)},
 		"port": map[string]any{"targetPort": "https"},
 		"tls": map[string]any{
 			"termination":                   "passthrough",
@@ -225,8 +209,8 @@ func frontendRoute(fe *foremanv1alpha1.Frontend, f *foremanv1alpha1.Foreman) *un
 	return u
 }
 
-func gatewayParent(fe *foremanv1alpha1.Frontend, section string) gwapiv1.ParentReference {
-	ref := fe.Spec.Exposure.GatewayRef
+func gatewayParent(f *foremanv1alpha1.Foreman, section string) gwapiv1.ParentReference {
+	ref := f.Spec.Frontend.Exposure.GatewayRef
 	parent := gwapiv1.ParentReference{Name: gwapiv1.ObjectName(ref.Name)}
 	if ref.Namespace != "" {
 		parent.Namespace = new(gwapiv1.Namespace(ref.Namespace))
@@ -246,25 +230,25 @@ func routeHostnames(f *foremanv1alpha1.Foreman) []gwapiv1.Hostname {
 	return hostnames
 }
 
-func frontendTLSRouteSpec(fe *foremanv1alpha1.Frontend, f *foremanv1alpha1.Foreman) gwapiv1.TLSRouteSpec {
+func frontendTLSRouteSpec(f *foremanv1alpha1.Foreman) gwapiv1.TLSRouteSpec {
 	return gwapiv1.TLSRouteSpec{
-		ParentRefs: []gwapiv1.ParentReference{gatewayParent(fe, fe.Spec.Exposure.GatewayRef.TLSSectionName)},
+		ParentRefs: []gwapiv1.ParentReference{gatewayParent(f, f.Spec.Frontend.Exposure.GatewayRef.TLSSectionName)},
 		Hostnames:  routeHostnames(f),
 		Rules: []gwapiv1.TLSRouteRule{{
 			BackendRefs: []gwapiv1.BackendRef{{
-				Name: gwapiv1.ObjectName(fe.Name),
+				Name: gwapiv1.ObjectName(foremanWebServiceName(f)),
 				Port: new(gwapiv1.PortNumber(443))}},
 		}},
 	}
 }
 
-func frontendHTTPRouteSpec(fe *foremanv1alpha1.Frontend, f *foremanv1alpha1.Foreman) gwapiv1.HTTPRouteSpec {
+func frontendHTTPRouteSpec(f *foremanv1alpha1.Foreman) gwapiv1.HTTPRouteSpec {
 	return gwapiv1.HTTPRouteSpec{
-		ParentRefs: []gwapiv1.ParentReference{gatewayParent(fe, fe.Spec.Exposure.GatewayRef.HTTPSectionName)},
+		ParentRefs: []gwapiv1.ParentReference{gatewayParent(f, f.Spec.Frontend.Exposure.GatewayRef.HTTPSectionName)},
 		Hostnames:  routeHostnames(f),
 		Rules: []gwapiv1.HTTPRouteRule{{
 			BackendRefs: []gwapiv1.HTTPBackendRef{{
-				Name: gwapiv1.ObjectName(fe.Name),
+				Name: gwapiv1.ObjectName(foremanWebServiceName(f)),
 				Port: new(gwapiv1.PortNumber(80))}},
 		}},
 	}

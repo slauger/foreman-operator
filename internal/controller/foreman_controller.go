@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	foremanv1alpha1 "github.com/slauger/foreman-operator/api/v1alpha1"
 )
@@ -115,8 +116,9 @@ func (r *ForemanReconciler) reconcile(ctx context.Context, f *foremanv1alpha1.Fo
 		return ctrl.Result{}, fmt.Errorf("client certificate: %w", err)
 	}
 	configChecksum = checksum(configChecksum, certChecksum)
-	if err := r.ensureObject(ctx, f, foremanWebService(f)); err != nil {
-		return ctrl.Result{}, fmt.Errorf("service: %w", err)
+	frontendChecksum, err := r.ensureFrontend(ctx, f)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("frontend: %w", err)
 	}
 
 	if err := r.Get(ctx, client.ObjectKey{Namespace: f.Namespace, Name: foremanDBSecretName(f)}, &corev1.Secret{}); err != nil {
@@ -142,7 +144,7 @@ func (r *ForemanReconciler) reconcile(ctx context.Context, f *foremanv1alpha1.Fo
 		f.Status.AppliedMigrationHash = hash
 	}
 
-	ready, err := r.ensureWorkloads(ctx, f, configChecksum)
+	ready, err := r.ensureWorkloads(ctx, f, configChecksum, frontendChecksum)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("workloads: %w", err)
 	}
@@ -253,21 +255,9 @@ func (r *ForemanReconciler) ensureConfig(ctx context.Context, f *foremanv1alpha1
 	return checksum(checksumMap(settings), checksumMap(dynflow), secrets[keyEncryptionKey], secrets[keySecretKeyBase]), nil
 }
 
-// ensureObject creates or updates a Service owned by the Foreman.
-func (r *ForemanReconciler) ensureObject(ctx context.Context, f *foremanv1alpha1.Foreman, desired *corev1.Service) error {
-	svc := &corev1.Service{}
-	svc.Name = desired.Name
-	svc.Namespace = desired.Namespace
-	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, svc, func() error {
-		svc.Labels = desired.Labels
-		svc.Spec.Selector = desired.Spec.Selector
-		svc.Spec.Ports = desired.Spec.Ports
-		return controllerutil.SetControllerReference(f, svc, r.Scheme)
-	})
-	return err
-}
-
-func (r *ForemanReconciler) desiredDeployments(f *foremanv1alpha1.Foreman, configChecksum string) []*appsv1.Deployment {
+// desiredDeployments builds all workloads. Only the web pods run the frontend, so only they
+// roll when its configuration or certificates change.
+func (r *ForemanReconciler) desiredDeployments(f *foremanv1alpha1.Foreman, configChecksum, frontendChecksum string) []*appsv1.Deployment {
 	web := int32(2)
 	if f.Spec.Web.Replicas != nil {
 		web = *f.Spec.Web.Replicas
@@ -281,7 +271,7 @@ func (r *ForemanReconciler) desiredDeployments(f *foremanv1alpha1.Foreman, confi
 		hostsQueue = *f.Spec.Dynflow.HostsQueueReplicas
 	}
 	return []*appsv1.Deployment{
-		foremanWebDeployment(f, r.Images, r.Capabilities, web, configChecksum),
+		foremanWebDeployment(f, r.Images, r.Capabilities, web, checksum(configChecksum, frontendChecksum)),
 		dynflowDeployment(f, r.Images, r.Capabilities, componentDynflowOrchestr, "orchestrator.yml", 1, configChecksum),
 		dynflowDeployment(f, r.Images, r.Capabilities, componentDynflowWorker, "worker.yml", workers, configChecksum),
 		dynflowDeployment(f, r.Images, r.Capabilities, componentDynflowHostsQueue, "worker-hosts-queue.yml", hostsQueue, configChecksum),
@@ -289,9 +279,9 @@ func (r *ForemanReconciler) desiredDeployments(f *foremanv1alpha1.Foreman, confi
 }
 
 // ensureWorkloads applies all Deployments and reports whether web and orchestrator are available.
-func (r *ForemanReconciler) ensureWorkloads(ctx context.Context, f *foremanv1alpha1.Foreman, configChecksum string) (bool, error) {
+func (r *ForemanReconciler) ensureWorkloads(ctx context.Context, f *foremanv1alpha1.Foreman, configChecksum, frontendChecksum string) (bool, error) {
 	ready := true
-	for _, desired := range r.desiredDeployments(f, configChecksum) {
+	for _, desired := range r.desiredDeployments(f, configChecksum, frontendChecksum) {
 		d, err := r.applyDeployment(ctx, f, desired)
 		if err != nil {
 			return false, err
@@ -431,6 +421,9 @@ func (r *ForemanReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Named("foreman")
 	if r.Capabilities.CertManager {
 		b = b.Owns(newCertificateObject())
+	}
+	if r.Capabilities.GatewayAPI {
+		b = b.Owns(&gwapiv1.TLSRoute{}).Owns(&gwapiv1.HTTPRoute{})
 	}
 	return b.Complete(r)
 }

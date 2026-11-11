@@ -14,27 +14,20 @@ spec:
     host: valkey
   web:
     replicas: 1
----
-apiVersion: platform.theforeman.org/v1alpha1
-kind: Frontend
-metadata:
-  name: foreman
-spec:
-  foremanRef: foreman
-  replicas: 1
-  tls:
-    server:
-      issuerRef:
-        name: foreman-internal-ca
-    clientCA:
-      issuerRef:
-        name: foreman-internal-ca
-  exposure:
-    type: TLSRoute
-    gatewayRef:
-      name: foreman
-      tlsSectionName: https
-      httpSectionName: http
+  frontend:
+    tls:
+      server:
+        issuerRef:
+          name: foreman-internal-ca
+      clientCA:
+        issuerRef:
+          name: foreman-internal-ca
+    exposure:
+      type: TLSRoute
+      gatewayRef:
+        name: foreman
+        tlsSectionName: https
+        httpSectionName: http
 ---
 apiVersion: platform.theforeman.org/v1alpha1
 kind: SmartProxy

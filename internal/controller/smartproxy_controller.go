@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"time"
@@ -32,12 +33,13 @@ type ForemanAPI interface {
 	DeleteSmartProxy(ctx context.Context, id int64) error
 }
 
-// ForemanAPIFactory creates a client for a Foreman. baseURL is the in-cluster web Service.
-type ForemanAPIFactory func(baseURL, publicURL, consumerKey, consumerSecret string) (ForemanAPI, error)
+// ForemanAPIFactory creates a client for a Foreman. baseURL is the in-cluster Service of the
+// frontend, and rootCAs verifies its certificate (nil: system roots).
+type ForemanAPIFactory func(baseURL, publicURL, consumerKey, consumerSecret string, rootCAs *x509.CertPool) (ForemanAPI, error)
 
 // NewForemanAPI is the default ForemanAPIFactory.
-func NewForemanAPI(baseURL, publicURL, consumerKey, consumerSecret string) (ForemanAPI, error) {
-	return foremanapi.New(baseURL, publicURL, consumerKey, consumerSecret)
+func NewForemanAPI(baseURL, publicURL, consumerKey, consumerSecret string, rootCAs *x509.CertPool) (ForemanAPI, error) {
+	return foremanapi.New(baseURL, publicURL, consumerKey, consumerSecret, rootCAs)
 }
 
 // SmartProxyReconciler reconciles a SmartProxy object.
@@ -247,8 +249,30 @@ func (r *SmartProxyReconciler) apiFor(ctx context.Context, f *foremanv1alpha1.Fo
 	if key == "" || secretValue == "" {
 		return nil, errors.New("the Foreman secrets do not contain OAuth credentials yet")
 	}
-	baseURL := fmt.Sprintf("http://%s.%s.svc:%d", foremanWebServiceName(f), f.Namespace, foremanWebPort)
-	return r.NewAPI(baseURL, foremanPublicURL(f), key, secretValue)
+	rootCAs, err := r.frontendRootCAs(ctx, f)
+	if err != nil {
+		return nil, err
+	}
+	baseURL := fmt.Sprintf("https://%s.%s.svc", foremanWebServiceName(f), f.Namespace)
+	return r.NewAPI(baseURL, foremanPublicURL(f), key, secretValue, rootCAs)
+}
+
+// frontendRootCAs returns the CA from ca.crt of the frontend server certificate. A public
+// certificate, for example from ACME, often comes without ca.crt and uses the system roots.
+func (r *SmartProxyReconciler) frontendRootCAs(ctx context.Context, f *foremanv1alpha1.Foreman) (*x509.CertPool, error) {
+	secret := &corev1.Secret{}
+	if err := r.Get(ctx, client.ObjectKey{Namespace: f.Namespace, Name: frontendServerCertName(f)}, secret); err != nil {
+		return nil, fmt.Errorf("frontend server certificate: %w", err)
+	}
+	ca := secret.Data["ca.crt"]
+	if len(ca) == 0 {
+		return nil, nil
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(ca) {
+		return nil, fmt.Errorf("frontend server certificate %s: ca.crt contains no certificate", secret.Name)
+	}
+	return pool, nil
 }
 
 // register creates or updates the proxy in Foreman. Foreman reads the features only on

@@ -100,15 +100,6 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "Foreman")
 		os.Exit(1)
 	}
-	if err := (&controller.FrontendReconciler{
-		Client:       mgr.GetClient(),
-		Scheme:       mgr.GetScheme(),
-		Images:       images,
-		Capabilities: caps,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Frontend")
-		os.Exit(1)
-	}
 	if err := (&controller.SmartProxyReconciler{
 		Client:       mgr.GetClient(),
 		Scheme:       mgr.GetScheme(),

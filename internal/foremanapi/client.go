@@ -125,6 +125,12 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 		public.RawQuery = query.Encode()
 	}
 
+	// Foreman rejects POST and PUT without a JSON content type, even when there is no body.
+	sendsJSON := body != nil || method == http.MethodPost || method == http.MethodPut
+	if sendsJSON && body == nil {
+		body = struct{}{}
+	}
+
 	var reader io.Reader
 	if body != nil {
 		data, err := json.Marshal(body)
@@ -146,7 +152,7 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 	req.Header.Set("Authorization", auth)
 	req.Header.Set("X-Forwarded-Proto", c.publicURL.Scheme)
 	req.Header.Set("Accept", "application/json")
-	if body != nil {
+	if sendsJSON {
 		req.Header.Set("Content-Type", "application/json")
 	}
 

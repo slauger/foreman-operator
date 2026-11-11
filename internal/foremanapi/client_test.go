@@ -50,7 +50,7 @@ func TestSignatureMatchesReference(t *testing.T) {
 }
 
 type recorded struct {
-	method, path, query, host, proto, auth, body string
+	method, path, query, host, proto, auth, body, contentType string
 }
 
 func newTestServer(t *testing.T, status int, response string) (*Client, *recorded) {
@@ -58,7 +58,7 @@ func newTestServer(t *testing.T, status int, response string) (*Client, *recorde
 	rec := &recorded{}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
-		*rec = recorded{r.Method, r.URL.Path, r.URL.RawQuery, r.Host, r.Header.Get("X-Forwarded-Proto"), r.Header.Get("Authorization"), string(body)}
+		*rec = recorded{r.Method, r.URL.Path, r.URL.RawQuery, r.Host, r.Header.Get("X-Forwarded-Proto"), r.Header.Get("Authorization"), string(body), r.Header.Get("Content-Type")}
 		w.WriteHeader(status)
 		_, _ = w.Write([]byte(response))
 	}))
@@ -127,6 +127,10 @@ func TestUpdateRefreshDelete(t *testing.T) {
 	}
 	if err := c.RefreshSmartProxy(ctx, 3); err != nil || rec.path != "/api/smart_proxies/3/refresh" {
 		t.Errorf("refresh: err = %v, path = %s", err, rec.path)
+	}
+	// Foreman answers 415 to a PUT without a JSON content type, even without a body.
+	if rec.contentType != "application/json" || rec.body != "{}" {
+		t.Errorf("refresh: content type = %q, body = %q", rec.contentType, rec.body)
 	}
 	if err := c.DeleteSmartProxy(ctx, 3); err != nil || rec.method != http.MethodDelete {
 		t.Errorf("delete: err = %v, method = %s", err, rec.method)

@@ -239,6 +239,9 @@ func TestSmartProxyDeployment(t *testing.T) {
 	if proxy.SecurityContext.RunAsNonRoot == nil || !*proxy.SecurityContext.RunAsNonRoot || *proxy.SecurityContext.AllowPrivilegeEscalation {
 		t.Error("the proxy container must run unprivileged")
 	}
+	if proxy.SecurityContext.RunAsGroup == nil || *proxy.SecurityContext.RunAsGroup != 0 {
+		t.Error("the proxy must run with group 0 to write the directory shared with dnsmasq")
+	}
 	caps := dnsmasq.SecurityContext.Capabilities
 	if !slices.Contains(caps.Drop, "ALL") || !slices.Contains(caps.Add, "NET_ADMIN") || !slices.Contains(caps.Add, "KILL") || len(caps.Add) != 6 {
 		t.Errorf("dnsmasq capabilities = %+v", caps)

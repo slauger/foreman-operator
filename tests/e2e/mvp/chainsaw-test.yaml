@@ -60,7 +60,7 @@ spec:
             content: |
               password="$(kubectl -n foreman-e2e get secret foreman-secrets -o jsonpath='{.data.admin-password}' | base64 -d)"
               curl -sfk -u "admin:${password}" "https://e2e-openvox.lnxlabs.de/api/smart_proxies?search=name%3Dpxe" \
-                | jq -r '.results[0].features[].name' | sort | tr '\n' ' '
+                | jq -r '.results[0].features[].name' | LC_ALL=C sort | tr '\n' ' '
             check:
               ($stdout): "DHCP DNS Logs TFTP Templates "
       catch:

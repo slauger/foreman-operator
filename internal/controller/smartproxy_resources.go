@@ -366,6 +366,9 @@ func smartProxyDeployment(p *foremanv1alpha1.SmartProxy, images Images, caps Cap
 	}
 	proxySC := restrictedContainerSecurityContext()
 	proxySC.RunAsNonRoot = new(true)
+	// The directory shared with dnsmasq is writable for group 0. Without an explicit group the
+	// runtime takes the primary group of the image user from /etc/passwd instead.
+	proxySC.RunAsGroup = new(int64(0))
 
 	containers := []corev1.Container{{
 		Name:            "proxy",

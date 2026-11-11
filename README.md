@@ -14,7 +14,7 @@ A Kubernetes Operator that maps [Foreman](https://theforeman.org/) and Smart Pro
 |---|---|
 | CRD types and generated CRDs | Implemented, validation tested with envtest |
 | `Foreman` controller | Implemented, migration, web, and Dynflow verified on a k3s cluster |
-| `Frontend` controller | Implemented, verified on a k3s cluster through a Gateway API TLSRoute |
+| Frontend (`Foreman.spec.frontend`) | Implemented as a sidecar in the web pods and covered by the E2E test. Verified through a Gateway API TLSRoute only as the earlier separate `Frontend` kind |
 | `SmartProxy` controller | Implemented, E2E test passes on k3s with a fake VLAN |
 | Container images | Built by CI, public on GHCR, unsigned while the repository is private |
 | Helm chart for the operator | Implemented, not published to a registry yet |
@@ -34,7 +34,7 @@ Some concepts and ideas were adopted from [theforeman/foreman-kubernetes](https:
 - 🥾 **Bare-Metal Provisioning** - DHCP and TFTP through dnsmasq, DNS through nsupdate, on direct L2 networks through Multus
 - 🔐 **cert-manager Integration** - Server, client, and proxy certificates requested from cert-manager issuers
 - 🐘 **CloudNativePG** - PostgreSQL through CloudNativePG, with a chart for the cluster
-- 🚪 **TLS Passthrough Frontend** - Apache with mutual TLS behind a LoadBalancer, an OpenShift Route, or a Gateway API TLSRoute
+- 🚪 **TLS Passthrough Frontend** - Apache with mutual TLS as a sidecar of Puma, behind a LoadBalancer, an OpenShift Route, or a Gateway API TLSRoute; Puma listens only on a Unix socket
 - 🔒 **Rootless Images** - Own UBI 9 images, built for random UIDs; only dnsmasq starts as root, with a minimal capability set
 - 🛡️ **Supply Chain Security** - BuildKit provenance and SBOMs, Renovate, and govulncheck; cosign signing once the repository is public
 - 🧭 **Planned** - Plugin catalog, Remote Execution, recurring tasks, `Release` upgrades, OpenShift qualification, and Katello
@@ -46,8 +46,10 @@ Some concepts and ideas were adopted from [theforeman/foreman-kubernetes](https:
 flowchart LR
     Users["Users and API clients"] --> Edge["Route, LoadBalancer, or TLSRoute<br/>TLS passthrough"]
     Build["Hosts being built"] -->|"HTTP /unattended"| Edge
-    Edge --> Frontend["Frontend<br/>mutual TLS"]
-    Frontend --> Web["Foreman web"]
+    Edge --> Frontend
+    subgraph WebPod["Foreman web pod"]
+        Frontend["httpd<br/>mutual TLS"] -->|"Unix socket"| Web["Puma"]
+    end
 
     Web --> PG[("PostgreSQL<br/>CloudNativePG")]
     Web --> Valkey[("Valkey")]
@@ -59,7 +61,7 @@ flowchart LR
     Build -->|"DHCP, TFTP, templates"| Net
 ```
 
-A **Foreman** is the root resource. It owns the web workload, the Dynflow workloads, and database migrations. A **Frontend** terminates mutual TLS inside the cluster and exposes Foreman through a passthrough Route, a LoadBalancer, or a Gateway API TLSRoute. A **SmartProxy** is one proxy registered in Foreman. A provisioning proxy runs dnsmasq for DHCP and TFTP next to the proxy process and attaches to a provisioning network through Multus.
+A **Foreman** is the root resource. It owns the web workload, the Dynflow workloads, and database migrations. Every web pod runs Apache as a frontend container next to Puma. Apache terminates mutual TLS and reaches Puma only over a Unix socket, so no other pod can reach Puma. `spec.frontend` exposes Foreman through a passthrough Route, a LoadBalancer, or a Gateway API TLSRoute. A **SmartProxy** is one proxy registered in Foreman. A provisioning proxy runs dnsmasq for DHCP and TFTP next to the proxy process and attaches to a provisioning network through Multus.
 
 ## CRD Model
 
@@ -67,8 +69,7 @@ All resources use the API group `platform.theforeman.org/v1alpha1`.
 
 | Kind | State | Purpose | Creates |
 |---|---|---|---|
-| **`Foreman`** | Implemented | FQDN, image, database and Valkey references | Deployments, migration Job, Service, Secrets, ConfigMap, Certificate |
-| **`Frontend`** | Implemented | Mutual TLS, exposure | Deployment, Service, ConfigMap, Route or TLSRoute and HTTPRoute, Certificates |
+| **`Foreman`** | Implemented | FQDN, image, database and Valkey references, frontend with mutual TLS and exposure | Deployments, migration Job, Service, Secrets, ConfigMaps, Certificates, Route or TLSRoute and HTTPRoute |
 | **`SmartProxy`** | Implemented for `Provisioning` | One registered proxy with networks and features | Deployment with a dnsmasq container, Service, ConfigMap, PVC, Certificate, Foreman registration |
 | **`Release`** | Planned | Compatible image sets, ordered upgrades | Jobs, status |
 | **`Candlepin`** | Planned | Subscription service for Katello | Deployment, Service, Secrets |
@@ -85,10 +86,10 @@ Certificates come from cert-manager. PostgreSQL comes from CloudNativePG. Forema
 | **Privileges** | Root on the host | Rootless, random UID compatible; dnsmasq with a minimal capability set |
 | **Certificates** | Generated on the host | cert-manager |
 | **Database** | Local or external PostgreSQL | CloudNativePG |
-| **TLS frontend** | Apache from a host package | `Frontend` resource with its own image |
+| **TLS frontend** | Apache from a host package | Apache container in every web pod, own image |
 | **Smart Proxy network** | Host network | Pod network, Multus for provisioning |
 | **DHCP and TFTP** | Host services | dnsmasq container in the proxy pod |
-| **Scaling** | Single host | Web and workers scale independently |
+| **Scaling** | Single host | Web and workers scale independently; the frontend scales with web |
 
 ## Quick Start
 
@@ -109,7 +110,7 @@ helm install foreman-db charts/foreman-db-cnpg \
   --create-namespace
 ```
 
-Then create a `Foreman` and a `Frontend`. The [Getting Started](docs/guides/getting-started.md) guide walks through the prerequisites, example resources, and the first login. Example resources are also in [`config/samples`](config/samples).
+Then create a `Foreman` with `spec.frontend`. The [Getting Started](docs/guides/getting-started.md) guide walks through the prerequisites, example resources, and the first login. Example resources are also in [`config/samples`](config/samples).
 
 ## Local Development
 
@@ -133,7 +134,7 @@ See [Contributing](CONTRIBUTING.md).
 | Chart | helm-unittest | `make helm-unittest` |
 | End to end | Chainsaw test `tests/e2e/mvp` on a k3s cluster with Multus, cert-manager, CloudNativePG, and Envoy Gateway | `tests/e2e/setup.sh`, then `chainsaw test` |
 
-CI enforces a total coverage of at least 60 percent. The Chainsaw E2E test passes on a k3s cluster with cert-manager, CloudNativePG, Multus, and Envoy Gateway, both against an existing installation and from scratch.
+CI enforces a total coverage of at least 60 percent. The Chainsaw E2E test passed on a k3s cluster with cert-manager, CloudNativePG, Multus, and Envoy Gateway, both against an existing installation and from scratch, with the earlier separate `Frontend`. A run with the frontend sidecar is not recorded yet.
 
 ## Supply Chain Security
 

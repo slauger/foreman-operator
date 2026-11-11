@@ -21,8 +21,9 @@ const (
 	frontendClientCAMountPath = "/etc/frontend/client-ca"
 
 	// pumaSocketDir is shared by Puma and Apache. Puma has no TCP listener, so only the
-	// frontend container in the same pod can reach it.
-	pumaSocketDir  = "/run/foreman"
+	// frontend container in the same pod can reach it. It is not /run/foreman, because the
+	// RPM links /usr/share/foreman/tmp there and the rails-tmp volume would shadow the socket.
+	pumaSocketDir  = "/run/puma"
 	pumaSocketPath = pumaSocketDir + "/puma.sock"
 )
 
@@ -116,9 +117,20 @@ func frontendConfig(f *foremanv1alpha1.Foreman) (string, error) {
 
 // frontendContainer runs Apache next to Puma in every web pod.
 func frontendContainer(f *foremanv1alpha1.Foreman, images Images) corev1.Container {
-	probe := &corev1.Probe{
+	liveness := &corev1.Probe{
 		TCPSocket:     &corev1.TCPSocketAction{Port: intstr.FromString("https")},
 		PeriodSeconds: 10,
+	}
+	// Readiness covers the whole path through Apache and the socket to Puma.
+	readiness := &corev1.Probe{
+		HTTPGet: &corev1.HTTPGetAction{
+			Scheme:      corev1.URISchemeHTTPS,
+			Port:        intstr.FromString("https"),
+			Path:        "/api/v2/ping",
+			HTTPHeaders: []corev1.HTTPHeader{{Name: "Host", Value: f.Spec.FQDN}},
+		},
+		PeriodSeconds:  10,
+		TimeoutSeconds: 5,
 	}
 	return corev1.Container{
 		Name:            "httpd",
@@ -129,8 +141,8 @@ func frontendContainer(f *foremanv1alpha1.Foreman, images Images) corev1.Contain
 			{Name: "http", ContainerPort: frontendHTTPPort},
 		},
 		SecurityContext: restrictedContainerSecurityContext(),
-		ReadinessProbe:  probe,
-		LivenessProbe:   probe,
+		ReadinessProbe:  readiness,
+		LivenessProbe:   liveness,
 		Resources:       defaultResources(f.Spec.Frontend.Resources, "20m", "64Mi", "256Mi"),
 		VolumeMounts: []corev1.VolumeMount{
 			{Name: "frontend-config", MountPath: "/etc/httpd/conf.d", ReadOnly: true},

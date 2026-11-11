@@ -34,7 +34,7 @@ func TestFrontendLoadBalancer(t *testing.T) {
 		"ServerAlias puppet.example.com",
 		"SSLVerifyClient optional",
 		"RequestHeader unset REMOTE-USER",
-		"ProxyPass / unix:/run/foreman/puma.sock|http://localhost/ retry=0 timeout=900 upgrade=websocket",
+		"ProxyPass / unix:/run/puma/puma.sock|http://localhost/ retry=0 timeout=900 upgrade=websocket",
 		`RequestHeader set SSL-CLIENT-VERIFY ""`,
 	} {
 		if !strings.Contains(conf, want) {
@@ -73,7 +73,7 @@ func TestWebPodRunsFrontendNextToPuma(t *testing.T) {
 	for _, e := range puma.Env {
 		env[e.Name] = e.Value
 	}
-	if env["FOREMAN_BIND"] != "unix:///run/foreman/puma.sock?umask=0007" {
+	if env["FOREMAN_BIND"] != "unix:///run/puma/puma.sock?umask=0007" {
 		t.Errorf("FOREMAN_BIND = %q", env["FOREMAN_BIND"])
 	}
 	for _, p := range []*corev1.Probe{puma.StartupProbe, puma.ReadinessProbe, puma.LivenessProbe} {

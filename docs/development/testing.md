@@ -29,15 +29,16 @@ chainsaw test --config tests/e2e/chainsaw-config.yaml tests/e2e/mvp
 
 | Step | Checks | Verified on the cluster |
 |---|---|---|
-| Foreman migrates and runs | Phase `Running` after the migration Job | Yes |
-| Frontend serves Foreman over the Gateway | Phase `Running`, `/api/v2/ping` through the TLSRoute | Yes |
+| Foreman migrates and runs | Phase `Running` after the migration Job | Yes, with the earlier separate `Frontend` |
+| Puma has no TCP listener | The web pod listens only on ports 8080 and 8443 | Covered by the test, result not recorded yet |
+| The frontend container serves Foreman over the Gateway | `/api/v2/ping` through the TLSRoute | Yes with the earlier separate `Frontend`; not recorded yet for the sidecar |
 | Smart Proxy is registered with its features | Phase `Running`, `foremanID` set, features `DHCP DNS Logs TFTP Templates` in Foreman | Passed |
 | DHCP reservation reaches a client on the fake VLAN | A reservation created through the proxy API gives the client its address | Passed |
 | TFTP serves the boot loader | The client downloads `pxelinux.0` | Passed |
 | DNS record lands in BIND | A record created through the proxy API resolves | Passed |
 | Deleting the Smart Proxy removes it from Foreman | The finalizer unregisters the proxy | Passed |
 
-Independent of the Chainsaw steps, the OAuth signature of the operator was verified against the real Foreman on the cluster: correctly signed requests are accepted and wrongly signed requests are rejected. The full test passes on e2e-openvox both against an existing installation and from scratch, with a new namespace and an empty database.
+Independent of the Chainsaw steps, the OAuth signature of the operator was verified against the real Foreman on the cluster: correctly signed requests are accepted and wrongly signed requests are rejected. The full test passed on e2e-openvox both against an existing installation and from scratch, with a new namespace and an empty database, before the frontend moved into the web pods. A run with the sidecar is not recorded yet.
 
 ## PXE lab
 

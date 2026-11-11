@@ -1,7 +1,7 @@
 # Platform Support
 
 !!! note "Status"
-    The k3s column is tested on the E2E cluster for Foreman and the Frontend. The OpenShift column is target design, stated from platform documentation, and has not been qualified.
+    The k3s column is tested on the E2E cluster for Foreman and its frontend. The OpenShift column is target design, stated from platform documentation, and has not been qualified.
 
 The operator detects OpenShift through the `route.openshift.io/v1` `Route` kind at startup. On OpenShift it omits `fsGroup` from pod security contexts and resolves exposure `Auto` to a Route.
 
@@ -23,4 +23,4 @@ The operator detects OpenShift through the `route.openshift.io/v1` `Route` kind 
 
 ## Testing OpenShift behavior early
 
-The operator never sets a UID for the Foreman, Frontend, and Smart Proxy containers, so the images must work under the UID the platform assigns. CI does not run under an arbitrary UID yet. Full qualification on OpenShift follows in the [roadmap](../roadmap.md).
+The operator never sets a UID for the Foreman, frontend, and Smart Proxy containers, so the images must work under the UID the platform assigns. CI does not run under an arbitrary UID yet. Full qualification on OpenShift follows in the [roadmap](../roadmap.md).

@@ -19,6 +19,8 @@ spec:
               kind: Foreman
               metadata:
                 name: foreman
+              # A phase from before the last change would pass too early.
+              (status.observedGeneration == metadata.generation): true
               status:
                 phase: Running
       catch:

@@ -1,7 +1,7 @@
 # Architecture
 
 !!! note "Status"
-    The `Foreman`, `Frontend`, and `SmartProxy` controllers are implemented as an MVP. The `Execution` profile, recurring tasks, `Release`, and the Katello kinds are target design. Rows and sections below say which parts are planned.
+    The `Foreman` and `SmartProxy` controllers are implemented as an MVP. The frontend is part of `Foreman` and runs in the web pods. The `Execution` profile, recurring tasks, `Release`, and the Katello kinds are target design. Rows and sections below say which parts are planned.
 
 ## Overview
 
@@ -11,8 +11,10 @@ The operator follows the standard Kubernetes operator pattern. Controllers watch
 flowchart LR
   Users[Users and API clients] --> Edge[Route, LoadBalancer, or TLSRoute, TLS passthrough]
   Build[Hosts being built] -->|HTTP unattended| Edge
-  Edge --> Frontend[Frontend, mutual TLS]
-  Frontend --> Web[Foreman web]
+  Edge --> Frontend
+  subgraph WebPod[Foreman web pod]
+    Frontend[httpd, mutual TLS] -->|Unix socket| Web[Puma]
+  end
 
   Dynflow[Dynflow] --> PG[(PostgreSQL)]
   Dynflow --> Valkey[(Valkey)]
@@ -49,13 +51,12 @@ A resource that needs a missing capability fails with a reconcile error. APIs in
 
 ```mermaid
 flowchart TD
-  Frontend -->|foremanRef| Foreman
   SmartProxy -->|foremanRef| Foreman
   Foreman -->|database.cluster| CNPG[CloudNativePG Cluster]
   Foreman -->|tls.issuerRef| Internal[cert-manager internal CA]
   SmartProxy -->|tls.issuerRef| Internal
-  Frontend -->|tls.clientCA| Internal
-  Frontend -->|tls.server| Public[cert-manager public issuer]
+  Foreman -->|frontend.tls.clientCA| Internal
+  Foreman -->|frontend.tls.server| Public[cert-manager public issuer]
   SmartProxy -->|networks.attachment| NAD[NetworkAttachmentDefinition]
 ```
 
@@ -63,8 +64,7 @@ flowchart TD
 
 | Component | Workload | Replicas | Process | State |
 |---|---|---|---|---|
-| Frontend | Deployment | 2 by default | Apache `httpd` with `mod_ssl` | Implemented |
-| Foreman web | Deployment | 2 by default | Rails with Puma on port 3000 | Implemented |
+| Foreman web | Deployment | 2 by default | Container `foreman`: Rails with Puma on a Unix socket. Container `httpd`: Apache with `mod_ssl` on ports 8443 and 8080 | Implemented |
 | Dynflow orchestrator | Deployment, Recreate | 1 | Sidekiq with the orchestrator configuration | Implemented |
 | Dynflow worker | Deployment | 1 by default | Sidekiq with the worker configuration | Implemented |
 | Dynflow hosts queue | Deployment | 0 by default | Sidekiq with the hosts queue configuration | Implemented |
@@ -72,7 +72,7 @@ flowchart TD
 | Smart Proxy | Deployment, Recreate | 1 | See [Smart Proxy](smart-proxy.md) | Implemented for `Provisioning` |
 | Recurring tasks | CronJob | n/a | `foreman-rake cron:hourly`, daily, weekly, monthly | Planned |
 
-The process split follows the `foremanctl` deployment. Puma workers are derived from the memory limit of the web container, about 1.5 GiB per worker, between 1 and 16.
+The process split follows the `foremanctl` deployment. Apache runs as a sidecar of Puma rather than as a separate Deployment, so Puma has no TCP listener and no other pod can forge the client certificate headers. Mutual TLS between a separate frontend and Puma would need extra certificates and still leave a port open. The trade-off is that frontend and web scale 1:1 and a frontend change restarts the web pods. See [Traffic Flow](traffic-flow.md#why-a-sidecar). Puma workers are derived from the memory limit of the web container, about 1.5 GiB per worker, between 1 and 16.
 
 Foreman core uses Dynflow as its ActiveJob backend, independent of Katello, for example for report templates, notifications, and event subscribers. The orchestrator and one worker are therefore part of every deployment. The hosts queue is only needed for Remote Execution, so it defaults to zero replicas.
 

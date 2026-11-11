@@ -4,7 +4,7 @@
 - 🥾 **Bare-Metal Provisioning** - DHCP and TFTP through dnsmasq, DNS through nsupdate, on direct L2 networks through Multus
 - 🔐 **cert-manager Integration** - Server, client, and proxy certificates requested from cert-manager issuers
 - 🐘 **CloudNativePG** - PostgreSQL through CloudNativePG, with a chart for the cluster
-- 🚪 **TLS Passthrough Frontend** - Apache with mutual TLS behind a LoadBalancer, an OpenShift Route, or a Gateway API TLSRoute
+- 🚪 **TLS Passthrough Frontend** - Apache with mutual TLS as a sidecar of Puma, behind a LoadBalancer, an OpenShift Route, or a Gateway API TLSRoute; Puma listens only on a Unix socket
 - 🔒 **Rootless Images** - Own UBI 9 images, built for random UIDs; only dnsmasq starts as root, with a minimal capability set
 - 🛡️ **Supply Chain Security** - BuildKit provenance and SBOMs, Renovate, and govulncheck; cosign signing once the repository is public
 - 🧭 **Planned** - Plugin catalog, Remote Execution, recurring tasks, `Release` upgrades, OpenShift qualification, and Katello

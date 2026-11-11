@@ -1,0 +1,62 @@
+suite: deployment
+templates:
+  - deployment.yaml
+tests:
+  - it: uses the appVersion as default image tag
+    chart:
+      appVersion: 1.2.3
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/slauger/foreman-operator:1.2.3
+  - it: runs hardened
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+  - it: passes operator settings as arguments
+    set:
+      operator.defaultImageTag: v0.1.0
+      operator.watchNamespace: foreman
+      operator.leaderElection: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --default-image-tag=v0.1.0
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --watch-namespace=foreman
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --leader-elect=false
+  - it: omits the namespace restriction by default
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --watch-namespace=
+  - it: renders extra environment variables
+    set:
+      extraEnv:
+        HTTPS_PROXY: http://proxy:3128
+      extraEnvSecret: operator-env
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HTTPS_PROXY
+            value: http://proxy:3128
+      - equal:
+          path: spec.template.spec.containers[0].envFrom[0].secretRef.name
+          value: operator-env

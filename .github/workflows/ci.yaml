@@ -27,8 +27,14 @@ jobs:
       - name: Vet
         run: go vet ./...
 
-      - name: Test
-        run: make test
+      - name: Test with coverage gate
+        run: make cover
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage
+          path: cover.out
 
       - name: Check generated files
         run: make check-manifests
@@ -51,8 +57,14 @@ jobs:
       - name: Set up Helm
         uses: azure/setup-helm@v5
 
+      - name: Install helm-unittest
+        run: helm plugin install --verify=false https://github.com/helm-unittest/helm-unittest
+
       - name: Lint charts
         run: make helm-lint
+
+      - name: Unit test charts
+        run: make helm-unittest
 
   docs:
     runs-on: ubuntu-latest

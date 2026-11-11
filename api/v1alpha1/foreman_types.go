@@ -58,8 +58,9 @@ type ForemanSpec struct {
 	// Valkey configures the Valkey connection.
 	Valkey ValkeySpec `json:"valkey"`
 
-	// SecretsRef names the Secret with "encryption-key", "secret-key-base", and "admin-password".
-	// The operator creates it with generated values if it does not exist. Defaults to "<name>-secrets".
+	// SecretsRef names the Secret with "encryption-key", "secret-key-base", "admin-password",
+	// "oauth-consumer-key", and "oauth-consumer-secret". The operator generates missing keys.
+	// Defaults to "<name>-secrets".
 	// +optional
 	SecretsRef string `json:"secretsRef,omitempty"`
 
@@ -158,6 +159,9 @@ type ForemanStatus struct {
 	// Phase is the current lifecycle phase.
 	// +optional
 	Phase ForemanPhase `json:"phase,omitempty"`
+	// AppliedMigrationHash identifies the image and plugin set the database was last migrated for.
+	// +optional
+	AppliedMigrationHash string `json:"appliedMigrationHash,omitempty"`
 
 	// Conditions represent the latest observations.
 	// +listType=map

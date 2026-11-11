@@ -1,0 +1,23 @@
+apiVersion: v2
+name: foreman-operator
+description: Experimental Kubernetes operator for Foreman and Smart Proxy (unofficial)
+type: application
+version: 0.0.0
+appVersion: "0.0.0"
+kubeVersion: ">=1.30.0-0"
+home: https://github.com/slauger/foreman-operator
+sources:
+  - https://github.com/slauger/foreman-operator
+maintainers:
+  - name: Simon Lauger
+    email: simon@lauger.de
+keywords:
+  - foreman
+  - smart-proxy
+  - provisioning
+  - operator
+annotations:
+  artifacthub.io/operator: "true"
+  artifacthub.io/operatorCapabilities: Basic Install
+  artifacthub.io/prerelease: "true"
+  artifacthub.io/license: Apache-2.0

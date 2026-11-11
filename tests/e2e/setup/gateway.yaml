@@ -1,0 +1,55 @@
+# Public access through Envoy Gateway with TLS passthrough. The node has no load balancer,
+# so the Envoy Service binds the public node address through externalIPs.
+apiVersion: v1
+kind: List
+items:
+  - apiVersion: gateway.envoyproxy.io/v1alpha1
+    kind: EnvoyProxy
+    metadata:
+      name: foreman-e2e
+    spec:
+      provider:
+        type: Kubernetes
+        kubernetes:
+          envoyService:
+            type: ClusterIP
+            patch:
+              type: StrategicMerge
+              value:
+                spec:
+                  externalIPs:
+                    - ${E2E_EXTERNAL_IP}
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: GatewayClass
+    metadata:
+      name: foreman-e2e
+    spec:
+      controllerName: gateway.envoyproxy.io/gatewayclass-controller
+      parametersRef:
+        group: gateway.envoyproxy.io
+        kind: EnvoyProxy
+        name: foreman-e2e
+        namespace: ${E2E_NAMESPACE}
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: Gateway
+    metadata:
+      name: foreman
+    spec:
+      gatewayClassName: foreman-e2e
+      listeners:
+        - name: https
+          protocol: TLS
+          port: 443
+          hostname: ${E2E_FQDN}
+          tls:
+            mode: Passthrough
+          allowedRoutes:
+            namespaces:
+              from: Same
+        - name: http
+          protocol: HTTP
+          port: 80
+          hostname: ${E2E_FQDN}
+          allowedRoutes:
+            namespaces:
+              from: Same

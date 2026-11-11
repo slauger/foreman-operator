@@ -9,7 +9,6 @@ spec:
   tls:
     issuerRef:
       name: foreman-internal-ca
-  oauthSecretRef: foreman-proxy-oauth
   networks:
     - attachment: provisioning-vlan100
       address: 192.0.2.10/24

@@ -1,0 +1,65 @@
+# Rootless Foreman Smart Proxy on UBI 9 for Kubernetes/OpenShift.
+# The same image runs both containers of the proxy pod: the Smart Proxy (default CMD,
+# unprivileged) and dnsmasq (DHCP/TFTP, started as root through dnsmasq-supervisor).
+FROM registry.access.redhat.com/ubi9/ubi:9.8-1793861509
+
+ARG FOREMAN_VERSION=5.0
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+LABEL org.opencontainers.image.title="foreman-smart-proxy" \
+      org.opencontainers.image.description="Rootless Foreman Smart Proxy with dnsmasq for Kubernetes/OpenShift (experimental, unofficial)" \
+      org.opencontainers.image.source="https://github.com/slauger/foreman-operator" \
+      org.opencontainers.image.licenses="GPL-3.0-only"
+
+# A fixed UID keeps file ownership predictable. OpenShift replaces it at runtime.
+RUN groupadd -r -g 1001 foreman-proxy \
+    && useradd -r -u 1001 -g foreman-proxy -d /usr/share/foreman-proxy -s /sbin/nologin foreman-proxy
+
+# foreman-proxy hard-requires rubygem-rubyipmi (needs ipmitool) and rubygem-ruby-libvirt
+# (needs libvirt-libs). Neither is in the UBI repos, and the BMC and libvirt providers are
+# never enabled here. All other dependencies come from the repos, then foreman-proxy and
+# the dnsmasq DHCP provider are installed without those two. The build fails if rpm reports
+# any other unsatisfied dependency. The plugins repo is unsigned upstream (gpgcheck=0), so
+# only the digests of the plugin RPM can be verified.
+RUN dnf install -y --nodocs "https://yum.theforeman.org/releases/${FOREMAN_VERSION}/el9/x86_64/foreman-release.rpm" \
+    && dnf install -y --nodocs --setopt=install_weak_deps=0 \
+        dnsmasq bind-utils iproute util-linux-core sudo ruby rubygems \
+        'rubygem(bundler_ext)' 'rubygem(concurrent-ruby)' 'rubygem(gssapi)' 'rubygem(json)' \
+        'rubygem(jwt)' 'rubygem(logging)' 'rubygem(rack)' 'rubygem(rake)' 'rubygem(rb-inotify)' \
+        'rubygem(redfish_client)' 'rubygem(rexml)' 'rubygem(rkerberos)' 'rubygem(rsec)' \
+        'rubygem(sd_notify)' 'rubygem(sinatra)' 'rubygem(xmlrpc)' \
+    && mkdir /tmp/rpms \
+    && dnf download -q --destdir /tmp/rpms foreman-proxy rubygem-smart_proxy_dhcp_dnsmasq \
+    && rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-foreman \
+    && rpm -K /tmp/rpms/foreman-proxy-*.rpm \
+    && rpm -K --nosignature /tmp/rpms/rubygem-smart_proxy_dhcp_dnsmasq-*.rpm \
+    && rpm -i --nodeps --excludedocs /tmp/rpms/*.rpm \
+    && rm -rf /tmp/rpms \
+    && unsatisfied="$(rpm -V --nofiles --nodigest --noscripts foreman-proxy rubygem-smart_proxy_dhcp_dnsmasq \
+        | grep 'is needed by' | grep -v -e 'rubygem(ruby-libvirt)' -e 'rubygem(rubyipmi)' || true)" \
+    && if [ -n "$unsatisfied" ]; then echo "$unsatisfied"; exit 1; fi \
+    && dnf clean all
+
+# The RPMs generate no secrets or certificates. Their example module configs are removed so
+# that only what the operator mounts is active.
+RUN rm -f /etc/foreman-proxy/settings.d/*.yml /etc/foreman-proxy/migration_state
+
+COPY dnsmasq-supervisor /usr/local/bin/dnsmasq-supervisor
+
+# OpenShift random-UID pattern: group root owns writable paths and mirrors user permissions.
+# /var/lib/foreman-proxy/dhcp is shared with dnsmasq, /var/lib/tftpboot is the TFTP root.
+RUN chmod 0755 /usr/local/bin/dnsmasq-supervisor \
+    && for d in /etc/foreman-proxy /var/lib/foreman-proxy /var/lib/foreman-proxy/dhcp \
+                /var/lib/tftpboot /var/lib/dnsmasq /var/log/foreman-proxy /run/foreman-proxy; do \
+        mkdir -p "$d"; \
+        chgrp -R 0 "$d"; \
+        chmod -R g=u "$d"; \
+    done
+
+ENV HOME=/tmp
+
+WORKDIR /usr/share/foreman-proxy
+USER 1001:0
+EXPOSE 8000 8443
+CMD ["/usr/share/foreman-proxy/bin/smart-proxy"]

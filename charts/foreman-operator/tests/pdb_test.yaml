@@ -1,0 +1,15 @@
+suite: pdb
+templates:
+  - pdb.yaml
+tests:
+  - it: is disabled by default
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: uses maxUnavailable unless minAvailable is set
+    set:
+      podDisruptionBudget.enabled: true
+    asserts:
+      - equal:
+          path: spec.maxUnavailable
+          value: 1

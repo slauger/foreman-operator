@@ -1,39 +1,62 @@
 # Container Images
 
 !!! note "Status"
-    No images exist yet. The package results below come from repository metadata on 2026-11-10. They compare package names without versions and are not a real installation.
+    Implemented. CI builds all images below. All images run on the E2E cluster.
 
-The upstream Foreman images are based on CentOS Stream 10, declare named users, and have no permissions for random UIDs. This project builds its own images on UBI 9.
+The upstream Foreman images are based on CentOS Stream 10, declare named users, and have no permissions for random UIDs. This project builds its own images on UBI 9, from `images/<name>/Containerfile`.
 
-| Image | Base | Content |
-|---|---|---|
-| `foreman-operator` | UBI 9 minimal | Operator binary |
-| `foreman` | UBI 9 | Foreman RPMs, selected plugins |
-| `foreman-proxy` | UBI 9 | Smart Proxy RPMs, selected plugins |
-| `frontend` | UBI 9 | `httpd`, `mod_ssl`, own configuration |
-| `dnsmasq` | UBI 9 | `dnsmasq` for DHCP and TFTP |
-| `boot-files` | CentOS Stream 9 | Static bootloader files only |
+| Image | Base | Content | Platforms |
+|---|---|---|---|
+| `ghcr.io/slauger/foreman-operator` | UBI 9 minimal | Operator binary | amd64, arm64 |
+| `ghcr.io/slauger/foreman-operator-foreman` | UBI 9 | Foreman 5.0 RPMs, no plugins yet | amd64 |
+| `ghcr.io/slauger/foreman-operator-smart-proxy` | UBI 9 | `foreman-proxy`, `smart_proxy_dhcp_dnsmasq`, dnsmasq, `bind-utils`, and the dnsmasq supervisor | amd64 |
+| `ghcr.io/slauger/foreman-operator-boot-files` | UBI 9 minimal, files from CentOS Stream 9 | syslinux, GRUB 2, and shim boot loaders | amd64 |
+| `ghcr.io/slauger/foreman-operator-frontend` | UBI 9 | `httpd`, `mod_ssl`; the configuration is mounted by the operator | amd64, arm64 |
+
+Foreman and Smart Proxy RPMs exist for x86_64 only.
+
+## Tags
+
+| Source | Tag |
+|---|---|
+| Push to `develop` | `develop` |
+| Push to `feat/**` | Branch name with slashes replaced by dashes, for example `feat-smart-proxy` |
+| Manual run | The given tag |
+
+The operator uses the tag of its `--default-image-tag` flag for every component image unless a resource sets `image.tag` or `image.digest`. Images are not signed while the repository is private, see [Supply Chain Security](../guides/supply-chain-security.md).
+
+## Smart Proxy image
+
+`foreman-proxy` hard-requires `rubygem-rubyipmi`, which needs `ipmitool`, and `rubygem-ruby-libvirt`, which needs `libvirt-libs`. Neither is in the UBI repositories. The image therefore installs all other dependencies from the repositories and then installs `foreman-proxy` and `rubygem-smart_proxy_dhcp_dnsmasq` with `rpm --nodeps`. The build fails if any other dependency is unsatisfied. As a result, the BMC providers based on `ipmitool` or `freeipmi` and the libvirt providers cannot be used.
+
+The Foreman plugins repository is unsigned upstream (`gpgcheck=0`), so only the digests of the dnsmasq plugin RPM are verified. `bind-utils` provides `nsupdate` for the DNS feature.
+
+The same image runs both containers of the proxy pod: the Smart Proxy as an unprivileged user, and dnsmasq through `dnsmasq-supervisor`, see [Provisioning](provisioning.md#pod-layout).
+
+## Boot files image
+
+The boot loaders come from CentOS Stream 9 packages (`syslinux-tftpboot`, `grub2-efi-x64`, `shim-x64`), because they are not in UBI 9. The image only contains static files: syslinux in the root, and GRUB 2 and shim under `grub2/`. Its default command copies them into `/var/lib/tftpboot`. License: `GPL-2.0-or-later AND GPL-3.0-or-later AND BSD-2-Clause-Patent`.
 
 ## Package availability
 
-Checked against UBI 9 BaseOS, AppStream, and CodeReady Builder, plus the Foreman 5.0 EL9 repositories.
+Checked against UBI 9 BaseOS, AppStream, and CodeReady Builder, plus the Foreman 5.0 EL9 repositories, from repository metadata on 2026-11-10.
 
 | Package set | Result |
 |---|---|
-| `foreman`, `foreman-service`, `foreman-postgresql`, `foreman-redis`, `foreman-dynflow-sidekiq` | Resolved |
-| `foreman_discovery`, `foreman_puppet`, `foreman_remote_execution` | Resolved |
-| `foreman-proxy` | Open: `rubygem-ruby-libvirt` needs libvirt, `rubygem-rubyipmi` needs `ipmitool`. Only part of the list was reviewed |
-| `foreman-bootloaders-redhat` | Open: GRUB and shim packages are missing |
+| `foreman`, `foreman-service`, `foreman-postgresql`, `foreman-redis`, `foreman-dynflow-sidekiq` | Installed in the Foreman image |
+| `foreman_discovery`, `foreman_puppet`, `foreman_remote_execution` | Resolved, not installed yet |
+| `foreman-proxy` | Installed with `--nodeps`, without `rubygem-ruby-libvirt` and `rubygem-rubyipmi` |
+| `foreman-bootloaders-redhat` | GRUB and shim packages are missing, replaced by the boot-files image |
 | `foreman_bootdisk` | Open: five packages are missing |
-| `dnsmasq`, `httpd`, `mod_ssl` | In UBI 9 |
+| `dnsmasq`, `httpd`, `mod_ssl`, `bind-utils` | In UBI 9 |
 | `dhcp-server`, `tftp-server`, `kea`, `freeipmi`, `ipmitool` | Not in UBI 9 |
 
 UBI 10 has not been checked.
 
 ## Random UID support
 
-Images follow the usual pattern: a numeric `USER <uid>:0`, group 0 owning writable paths with `chmod -R g=u`, and `HOME` set explicitly.
+Images follow the usual pattern: a numeric `USER 1001:0`, group 0 owning writable paths with `chmod -R g=u`, and `HOME` set explicitly. The Foreman image removes the secrets generated by the RPM scriptlets and reads `ENCRYPTION_KEY` and `SECRET_KEY_BASE` from the environment.
 
 ## Licensing
 
-The images contain GPL-licensed software, including Foreman and Smart Proxy. Containerfiles in this repository are Apache-2.0. Each published image that ships GPL components must carry the license texts and make the corresponding source available, for example as a source image built from the SRPMs. RPMs are installed unpatched.
+The images contain GPL-licensed software, including Foreman and Smart Proxy. Containerfiles in this repository are Apache-2.0. Each image carries an `org.opencontainers.image.licenses` label. Each published image that ships GPL components must carry the license texts and make the corresponding source available, for example as a source image built from the SRPMs. This is not implemented yet. RPMs are installed unpatched.

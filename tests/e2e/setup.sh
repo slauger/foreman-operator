@@ -58,6 +58,18 @@ if [[ "${OPERATOR}" == "helm" ]]; then
         --set operator.defaultImageTag="${IMAGE_TAG}"
     retry kubectl -n foreman-operator rollout restart deployment/foreman-operator
     retry kubectl -n foreman-operator rollout status deployment/foreman-operator --timeout=300s
+    # The new pod reconciles only after the lease of the old one expires. Until then, the
+    # status of the resources still reflects the previous operator version.
+    pod="$(kubectl -n foreman-operator get pods -l app.kubernetes.io/name=foreman-operator -o json \
+        | jq -r '[.items[] | select(.metadata.deletionTimestamp == null)][0].metadata.name')"
+    for _ in $(seq 60); do
+        holder="$(kubectl -n foreman-operator get lease foreman-operator.platform.theforeman.org \
+            -o jsonpath='{.spec.holderIdentity}' 2>/dev/null || true)"
+        [[ "${holder}" == "${pod}_"* ]] && break
+        sleep 5
+    done
+    # Give the new leader time to reconcile and publish the current status.
+    sleep 15
 fi
 
 retry kubectl -n "${E2E_NAMESPACE}" wait --for=condition=Ready cluster/foreman-db --timeout=600s

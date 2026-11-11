@@ -86,7 +86,6 @@ rules:
   - platform.theforeman.org
   resources:
   - foremen
-  - frontends
   - smartproxies
   verbs:
   - get
@@ -98,7 +97,6 @@ rules:
   - platform.theforeman.org
   resources:
   - foremen/status
-  - frontends/status
   - smartproxies/status
   verbs:
   - get

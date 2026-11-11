@@ -43,7 +43,7 @@ func newTestClient(objs ...client.Object) client.Client {
 	return fake.NewClientBuilder().
 		WithScheme(testScheme()).
 		WithObjects(objs...).
-		WithStatusSubresource(&foremanv1alpha1.Foreman{}, &foremanv1alpha1.Frontend{}, &foremanv1alpha1.SmartProxy{}).
+		WithStatusSubresource(&foremanv1alpha1.Foreman{}, &foremanv1alpha1.SmartProxy{}).
 		Build()
 }
 
@@ -56,6 +56,12 @@ func testForeman() *foremanv1alpha1.Foreman {
 			TLS:      foremanv1alpha1.TLSSpec{IssuerRef: &foremanv1alpha1.IssuerReference{Name: "internal-ca"}},
 			Database: foremanv1alpha1.DatabaseSpec{Cluster: foremanv1alpha1.CNPGClusterRef{Name: "foreman-db"}},
 			Valkey:   foremanv1alpha1.ValkeySpec{Host: "valkey", Port: 6379},
+			Frontend: foremanv1alpha1.ForemanFrontendSpec{
+				TLS: foremanv1alpha1.FrontendTLSSpec{
+					Server:   foremanv1alpha1.TLSSpec{IssuerRef: &foremanv1alpha1.IssuerReference{Name: "letsencrypt", Kind: "ClusterIssuer"}},
+					ClientCA: foremanv1alpha1.TLSSpec{SecretName: "internal-ca"},
+				},
+			},
 		},
 	}
 }

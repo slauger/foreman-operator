@@ -4,6 +4,8 @@ package foremanapi
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,10 +19,10 @@ import (
 // ErrNotFound is returned when Foreman answers with 404.
 var ErrNotFound = errors.New("not found")
 
-// Client talks to Foreman over the in-cluster Service of the web workload.
+// Client talks to Foreman over the in-cluster Service of the frontend.
 //
-// Requests carry the public hostname and X-Forwarded-Proto, as the Frontend would send them.
-// Foreman verifies the OAuth signature against that public URL, so it is signed as well.
+// Requests carry the public hostname in SNI and the Host header, so the frontend serves them
+// like any external request. Foreman verifies the OAuth signature against the public URL.
 type Client struct {
 	baseURL    *url.URL
 	publicURL  *url.URL
@@ -28,8 +30,9 @@ type Client struct {
 	httpClient *http.Client
 }
 
-// New returns a client that connects to baseURL and presents itself as publicURL.
-func New(baseURL, publicURL, consumerKey, consumerSecret string) (*Client, error) {
+// New returns a client that connects to baseURL and presents itself as publicURL. rootCAs
+// verifies the frontend certificate; nil uses the system roots.
+func New(baseURL, publicURL, consumerKey, consumerSecret string, rootCAs *x509.CertPool) (*Client, error) {
 	b, err := url.Parse(baseURL)
 	if err != nil {
 		return nil, fmt.Errorf("parse base URL: %w", err)
@@ -47,7 +50,17 @@ func New(baseURL, publicURL, consumerKey, consumerSecret string) (*Client, error
 			now:            time.Now,
 			nonce:          randomNonce,
 		},
-		httpClient: &http.Client{Timeout: 60 * time.Second},
+		httpClient: &http.Client{
+			Timeout: 60 * time.Second,
+			Transport: &http.Transport{
+				Proxy: http.ProxyFromEnvironment,
+				TLSClientConfig: &tls.Config{
+					ServerName: p.Hostname(),
+					RootCAs:    rootCAs,
+					MinVersion: tls.VersionTLS12,
+				},
+			},
+		},
 	}, nil
 }
 
@@ -150,7 +163,6 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 	}
 	req.Host = c.publicURL.Host
 	req.Header.Set("Authorization", auth)
-	req.Header.Set("X-Forwarded-Proto", c.publicURL.Scheme)
 	req.Header.Set("Accept", "application/json")
 	if sendsJSON {
 		req.Header.Set("Content-Type", "application/json")

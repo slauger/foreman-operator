@@ -11,7 +11,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
 
 	foremanv1alpha1 "github.com/slauger/foreman-operator/api/v1alpha1"
 )
@@ -34,7 +33,6 @@ const (
 	componentMigration         = "migration"
 
 	foremanAppName = "foreman"
-	foremanWebPort = 3000
 
 	foremanTLSMountPath = "/etc/foreman/tls"
 )
@@ -60,7 +58,7 @@ func foremanClientCertName(f *foremanv1alpha1.Foreman) string {
 	return tlsSecretName(f.Spec.TLS, f.Name+"-client")
 }
 
-// foremanWebServiceName is the in-cluster Service of the web workload.
+// foremanWebServiceName is the Service of the frontend containers in the web pods.
 func foremanWebServiceName(f *foremanv1alpha1.Foreman) string { return f.Name + "-web" }
 
 func foremanComponentName(f *foremanv1alpha1.Foreman, component string) string {
@@ -129,8 +127,9 @@ func foremanSettings(f *foremanv1alpha1.Foreman, oauthKey, oauthSecret string) s
 	s.set("fqdn", f.Spec.FQDN)
 	s.set("foreman_url", foremanPublicURL(f))
 	s.set("hosts", hosts)
-	// The Frontend and the operator reach Foreman from the pod network.
-	s.set("trusted_proxies", []string{"127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"})
+	// Only the frontend container reaches Puma, over a Unix socket. The client address comes
+	// from the X-Forwarded-For entry Apache appends, which clients cannot forge.
+	s.set("trusted_proxies", []string{"127.0.0.0/8", "::1"})
 	s.set("require_ssl", true)
 	s.set("rails_cache_store", cache)
 	s.set("ssl_client_dn_env", "HTTP_SSL_CLIENT_S_DN")
@@ -271,40 +270,42 @@ func foremanDeployment(f *foremanv1alpha1.Foreman, component string, replicas in
 func foremanWebDeployment(f *foremanv1alpha1.Foreman, images Images, caps Capabilities, replicas int32, configChecksum string) *appsv1.Deployment {
 	res := defaultResources(f.Spec.Web.Resources, "200m", "1Gi", "3Gi")
 	workers := pumaWorkers(res)
+	// Puma listens only on the socket, so the kubelet cannot reach it over HTTP.
+	ping := []string{"curl", "-sf", "-o", "/dev/null", "-m", "4", "--unix-socket", pumaSocketPath,
+		"-H", "Host: " + f.Spec.FQDN, "-H", "X-Forwarded-Proto: https", "http://localhost/api/v2/ping"}
 	probe := &corev1.Probe{
-		HTTPGet: &corev1.HTTPGetAction{
-			Path: "/api/v2/ping",
-			Port: intstr.FromInt32(foremanWebPort),
-			HTTPHeaders: []corev1.HTTPHeader{
-				{Name: "Host", Value: f.Spec.FQDN},
-				{Name: "X-Forwarded-Proto", Value: "https"},
-			},
-		},
+		Exec:             &corev1.ExecAction{Command: ping},
 		PeriodSeconds:    10,
 		TimeoutSeconds:   5,
 		FailureThreshold: 3,
 	}
 	startup := probe.DeepCopy()
 	startup.FailureThreshold = 60
+	liveness := probe.DeepCopy()
+	liveness.PeriodSeconds = 20
+	liveness.FailureThreshold = 6
 
 	ctr := corev1.Container{
-		Name:  "foreman",
-		Ports: []corev1.ContainerPort{{Name: "http", ContainerPort: foremanWebPort}},
+		Name: "foreman",
 		Env: append(foremanEnv(f, 5*int(workers)+4),
+			// Puma reads a non-IP FOREMAN_BIND as a bind URI. umask 0007 lets the frontend
+			// connect even if the platform gives it another user in group 0.
+			corev1.EnvVar{Name: "FOREMAN_BIND", Value: "unix://" + pumaSocketPath + "?umask=0007"},
 			corev1.EnvVar{Name: "FOREMAN_PUMA_WORKERS", Value: strconv.FormatInt(workers, 10)},
 			corev1.EnvVar{Name: "FOREMAN_PUMA_THREADS_MIN", Value: "5"},
 			corev1.EnvVar{Name: "FOREMAN_PUMA_THREADS_MAX", Value: "5"},
 		),
 		StartupProbe:   startup,
 		ReadinessProbe: probe,
-		LivenessProbe: &corev1.Probe{
-			TCPSocket:        &corev1.TCPSocketAction{Port: intstr.FromInt32(foremanWebPort)},
-			PeriodSeconds:    20,
-			FailureThreshold: 6,
-		},
-		Resources: res,
+		LivenessProbe:  liveness,
+		Resources:      res,
 	}
-	return foremanDeployment(f, componentWeb, replicas, foremanPodSpec(f, images, caps, ctr), configChecksum)
+	podSpec := foremanPodSpec(f, images, caps, ctr)
+	podSpec.Containers[0].VolumeMounts = append(podSpec.Containers[0].VolumeMounts,
+		corev1.VolumeMount{Name: "puma-socket", MountPath: pumaSocketDir})
+	podSpec.Containers = append(podSpec.Containers, frontendContainer(f, images))
+	podSpec.Volumes = append(podSpec.Volumes, frontendVolumes(f)...)
+	return foremanDeployment(f, componentWeb, replicas, podSpec, configChecksum)
 }
 
 func dynflowDeployment(f *foremanv1alpha1.Foreman, images Images, caps Capabilities, component, config string, replicas int32, configChecksum string) *appsv1.Deployment {
@@ -321,22 +322,6 @@ func dynflowDeployment(f *foremanv1alpha1.Foreman, images Images, caps Capabilit
 		d.Spec.Strategy = appsv1.DeploymentStrategy{Type: appsv1.RecreateDeploymentStrategyType}
 	}
 	return d
-}
-
-func foremanWebService(f *foremanv1alpha1.Foreman) *corev1.Service {
-	svc := &corev1.Service{}
-	svc.Name = foremanWebServiceName(f)
-	svc.Namespace = f.Namespace
-	svc.Labels = commonLabels(foremanAppName, f.Name, componentWeb)
-	svc.Spec = corev1.ServiceSpec{
-		Selector: selectorLabels(foremanAppName, f.Name, componentWeb),
-		Ports: []corev1.ServicePort{{
-			Name:       "http",
-			Port:       foremanWebPort,
-			TargetPort: intstr.FromString("http"),
-		}},
-	}
-	return svc
 }
 
 // migrationJob migrates and seeds the database and runs the upgrade tasks for one hash.

@@ -1,6 +1,6 @@
 # foreman-operator
 
-Helm chart for foreman-operator, an experimental Kubernetes operator for Foreman and Smart Proxy. The operator reconciles the `Foreman`, `Frontend`, and `SmartProxy` custom resources of the API group `platform.theforeman.org/v1alpha1`.
+Helm chart for foreman-operator, an experimental Kubernetes operator for Foreman and Smart Proxy. The operator reconciles the `Foreman` and `SmartProxy` custom resources of the API group `platform.theforeman.org/v1alpha1`.
 
 > **Experimental.** This is an unofficial, unsupported prototype. It is not affiliated with or endorsed by the Foreman project. Do not use it in production.
 
@@ -28,6 +28,8 @@ helm upgrade --install foreman-operator charts/foreman-operator \
   --set operator.defaultImageTag=feat-example
 ```
 
+The `Frontend` kind was removed; its settings are now `spec.frontend` of the `Foreman`. `kubectl apply` does not delete the old CRD `frontends.platform.theforeman.org`. Delete existing `Frontend` resources and that CRD by hand. Their child objects can have the same names as the new frontend objects of the `Foreman`, so delete them before the upgrade. This upgrade path is not tested.
+
 cert-manager, CloudNativePG, and Valkey are prerequisites of the managed resources, not of the chart. See the [Getting Started](../../docs/guides/getting-started.md) guide.
 
 ## RBAC
@@ -44,7 +46,7 @@ The RBAC rules are rendered from `files/rules.yaml`, which `make manifests` gene
 | `imagePullSecrets` | list | `[]` | Image pull secrets for private registries |
 | `nameOverride` | string | `""` | Override the chart name |
 | `fullnameOverride` | string | `""` | Override the fully qualified app name |
-| `operator.defaultImageTag` | string | `develop` | Tag of the Foreman, Frontend, Smart Proxy, and boot-files images when a resource names neither tag nor digest |
+| `operator.defaultImageTag` | string | `develop` | Tag of the Foreman, frontend, Smart Proxy, and boot-files images when a resource names neither tag nor digest |
 | `operator.watchNamespace` | string | `""` | Restrict the operator to one namespace. Empty watches all namespaces |
 | `operator.leaderElection` | bool | `true` | Enable leader election. Required for more than one replica |
 | `operator.logLevel` | string | `info` | Log level: `debug`, `info`, or `error` |

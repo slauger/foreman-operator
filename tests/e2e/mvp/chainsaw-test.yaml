@@ -6,7 +6,7 @@ spec:
   # Prerequisites and the operator come from setup.sh.
   namespace: foreman-e2e
   steps:
-    - name: Create Foreman, Frontend, and Smart Proxy
+    - name: Create Foreman and Smart Proxy
       try:
         - apply:
             file: resources.yaml
@@ -19,6 +19,8 @@ spec:
               kind: Foreman
               metadata:
                 name: foreman
+              # A phase from before the last change would pass too early.
+              (status.observedGeneration == metadata.generation): true
               status:
                 phase: Running
       catch:
@@ -29,16 +31,20 @@ spec:
             selector: app.kubernetes.io/instance=foreman
             tail: 50
 
-    - name: Frontend serves Foreman over the Gateway
+    - name: Puma has no TCP listener, only the frontend ports are open
       try:
-        - assert:
-            resource:
-              apiVersion: platform.theforeman.org/v1alpha1
-              kind: Frontend
-              metadata:
-                name: foreman
-              status:
-                phase: Running
+        - script:
+            content: |
+              set -e
+              # Listening sockets have state 0A; the local port is the hex part after the colon.
+              kubectl -n foreman-e2e exec deploy/foreman-web -c foreman -- cat /proc/net/tcp /proc/net/tcp6 \
+                | awk '$4 == "0A" { split($2, a, ":"); print a[2] }' | sort -u \
+                | while read -r hex; do printf '%d\n' "0x${hex}"; done | sort -n | tr '\n' ' '
+            check:
+              ($stdout): "8080 8443 "
+
+    - name: The frontend container serves Foreman over the Gateway
+      try:
         - script:
             content: |
               curl -sfk --retry 10 --retry-delay 5 --retry-all-errors https://e2e-openvox.lnxlabs.de/api/v2/ping
@@ -79,8 +85,11 @@ spec:
               set -e
               mac="$(kubectl -n foreman-e2e exec pxe-client -- cat /sys/class/net/net1/address | tr -d '\r')"
               # Foreman's own client certificate, as Foreman would call the proxy.
-              kubectl -n foreman-e2e exec deploy/foreman-web -- curl -sf \
-                --cert /etc/foreman/tls/tls.crt --key /etc/foreman/tls/tls.key --cacert /etc/foreman/tls/ca.crt \
+              tls="--cert /etc/foreman/tls/tls.crt --key /etc/foreman/tls/tls.key --cacert /etc/foreman/tls/ca.crt"
+              # The volume keeps the reservation of an earlier run, which would reject a new one.
+              kubectl -n foreman-e2e exec deploy/foreman-web -c foreman -- curl -s ${tls} -o /dev/null \
+                -X DELETE "https://pxe.foreman-e2e.svc:8443/dhcp/10.99.0.0/mac/${mac}"
+              kubectl -n foreman-e2e exec deploy/foreman-web -c foreman -- curl -sf ${tls} \
                 -X POST https://pxe.foreman-e2e.svc:8443/dhcp/10.99.0.0 \
                 -d mac="${mac}" -d ip=10.99.0.50 -d hostname=host1.lab.test -d filename=pxelinux.0 -d nextServer=10.99.0.10 >/dev/null
               sleep 3
@@ -103,7 +112,7 @@ spec:
         - script:
             content: |
               set -e
-              kubectl -n foreman-e2e exec deploy/foreman-web -- curl -sf \
+              kubectl -n foreman-e2e exec deploy/foreman-web -c foreman -- curl -sf \
                 --cert /etc/foreman/tls/tls.crt --key /etc/foreman/tls/tls.key --cacert /etc/foreman/tls/ca.crt \
                 -X POST https://pxe.foreman-e2e.svc:8443/dns/ \
                 -d fqdn=host1.lab.test -d value=10.99.0.50 -d type=A >/dev/null
@@ -121,7 +130,7 @@ spec:
               kubectl -n foreman-e2e rollout restart deploy/pxe >/dev/null
               kubectl -n foreman-e2e rollout status deploy/pxe --timeout=3m >/dev/null
               kubectl -n foreman-e2e exec deploy/pxe -c proxy -- grep -c " ${mac} 10.99.0.50 " /var/lib/foreman-proxy/dhcp/dnsmasq.leases
-              kubectl -n foreman-e2e exec deploy/foreman-web -- curl -sf \
+              kubectl -n foreman-e2e exec deploy/foreman-web -c foreman -- curl -sf \
                 --cert /etc/foreman/tls/tls.crt --key /etc/foreman/tls/tls.key --cacert /etc/foreman/tls/ca.crt \
                 "https://pxe.foreman-e2e.svc:8443/dhcp/10.99.0.0/mac/${mac}" | jq -r .ip
             check:

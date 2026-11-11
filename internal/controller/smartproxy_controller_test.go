@@ -2,11 +2,20 @@ package controller
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
+	"math/big"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -28,6 +37,7 @@ type fakeForemanAPI struct {
 	deleted   []int64
 	createErr error
 	baseURL   string
+	rootCAs   *x509.CertPool
 	publicURL string
 }
 
@@ -35,8 +45,8 @@ func newFakeForemanAPI() *fakeForemanAPI {
 	return &fakeForemanAPI{proxies: map[string]*foremanapi.SmartProxy{}, nextID: 1}
 }
 
-func (f *fakeForemanAPI) factory(baseURL, publicURL, _, _ string) (ForemanAPI, error) {
-	f.baseURL, f.publicURL = baseURL, publicURL
+func (f *fakeForemanAPI) factory(baseURL, publicURL, _, _ string, rootCAs *x509.CertPool) (ForemanAPI, error) {
+	f.baseURL, f.publicURL, f.rootCAs = baseURL, publicURL, rootCAs
 	return f, nil
 }
 
@@ -103,7 +113,30 @@ func testSmartProxy() *foremanv1alpha1.SmartProxy {
 }
 
 // readyForeman is a Foreman whose Ready condition is true, with its secrets.
-func readyForeman() (*foremanv1alpha1.Foreman, *corev1.Secret) {
+// testCAPEM is a self-signed CA certificate, as cert-manager stores it in ca.crt.
+var testCAPEM = sync.OnceValue(func() []byte {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		panic(err)
+	}
+	tmpl := &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: "test CA"},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(time.Hour),
+		IsCA:                  true,
+		BasicConstraintsValid: true,
+		KeyUsage:              x509.KeyUsageCertSign,
+	}
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
+	if err != nil {
+		panic(err)
+	}
+	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
+})
+
+// readyForeman returns a ready Foreman, its secrets, and the frontend server certificate.
+func readyForeman() (*foremanv1alpha1.Foreman, *corev1.Secret, *corev1.Secret) {
 	f := testForeman()
 	f.Status.Conditions = []metav1.Condition{{
 		Type: foremanv1alpha1.ConditionReady, Status: metav1.ConditionTrue, Reason: reasonReconciled, LastTransitionTime: metav1.Now(),
@@ -115,7 +148,11 @@ func readyForeman() (*foremanv1alpha1.Foreman, *corev1.Secret) {
 			keyOAuthConsumerSecret: []byte("secret"),
 		},
 	}
-	return f, secrets
+	server := &corev1.Secret{
+		Name: "prod-server", Namespace: testNamespace,
+		Data: map[string][]byte{"ca.crt": testCAPEM()},
+	}
+	return f, secrets, server
 }
 
 func newSmartProxyReconciler(c client.Client, api *fakeForemanAPI) *SmartProxyReconciler {
@@ -297,8 +334,8 @@ func TestSmartProxyDeployment(t *testing.T) {
 }
 
 func TestSmartProxyRegistersAndRefreshes(t *testing.T) {
-	f, secrets := readyForeman()
-	c := newTestClient(f, secrets, testSmartProxy())
+	f, secrets, server := readyForeman()
+	c := newTestClient(f, secrets, server, testSmartProxy())
 	api := newFakeForemanAPI()
 	r := newSmartProxyReconciler(c, api)
 
@@ -320,8 +357,11 @@ func TestSmartProxyRegistersAndRefreshes(t *testing.T) {
 	if got.Status.ForemanID != 1 || api.proxies["pxe"].URL != "https://pxe.foreman.svc:8443" {
 		t.Errorf("foremanID = %d, proxies = %v", got.Status.ForemanID, api.proxies)
 	}
-	if api.baseURL != "http://prod-web.foreman.svc:3000" || api.publicURL != "https://foreman.example.com" {
+	if api.baseURL != "https://prod-web.foreman.svc" || api.publicURL != "https://foreman.example.com" {
 		t.Errorf("api urls = %s, %s", api.baseURL, api.publicURL)
+	}
+	if api.rootCAs == nil {
+		t.Error("the frontend CA must verify the API connection")
 	}
 
 	// A spec change refreshes the features in Foreman.
@@ -341,8 +381,8 @@ func TestSmartProxyRegistersAndRefreshes(t *testing.T) {
 }
 
 func TestSmartProxyAdoptsExistingRegistration(t *testing.T) {
-	f, secrets := readyForeman()
-	c := newTestClient(f, secrets, testSmartProxy())
+	f, secrets, server := readyForeman()
+	c := newTestClient(f, secrets, server, testSmartProxy())
 	api := newFakeForemanAPI()
 	api.proxies["pxe"] = &foremanapi.SmartProxy{ID: 42, Name: "pxe", URL: "https://old:8443"}
 	r := newSmartProxyReconciler(c, api)
@@ -356,8 +396,8 @@ func TestSmartProxyAdoptsExistingRegistration(t *testing.T) {
 }
 
 func TestSmartProxyRegistrationFailure(t *testing.T) {
-	f, secrets := readyForeman()
-	c := newTestClient(f, secrets, testSmartProxy())
+	f, secrets, server := readyForeman()
+	c := newTestClient(f, secrets, server, testSmartProxy())
 	api := newFakeForemanAPI()
 	api.createErr = errors.New("unable to communicate with the proxy")
 	r := newSmartProxyReconciler(c, api)
@@ -369,8 +409,8 @@ func TestSmartProxyRegistrationFailure(t *testing.T) {
 }
 
 func TestSmartProxyWaitsForReadyForeman(t *testing.T) {
-	_, secrets := readyForeman()
-	c := newTestClient(testForeman(), secrets, testSmartProxy())
+	_, secrets, server := readyForeman()
+	c := newTestClient(testForeman(), secrets, server, testSmartProxy())
 	r := newSmartProxyReconciler(c, newFakeForemanAPI())
 	reconcileSmartProxy(t, r)
 	markDeploymentAvailable(t, c, "pxe")
@@ -379,8 +419,8 @@ func TestSmartProxyWaitsForReadyForeman(t *testing.T) {
 }
 
 func TestSmartProxyDeletionUnregisters(t *testing.T) {
-	f, secrets := readyForeman()
-	c := newTestClient(f, secrets, testSmartProxy())
+	f, secrets, server := readyForeman()
+	c := newTestClient(f, secrets, server, testSmartProxy())
 	api := newFakeForemanAPI()
 	r := newSmartProxyReconciler(c, api)
 	reconcileSmartProxy(t, r)
@@ -439,8 +479,8 @@ func TestProxyEndpoint(t *testing.T) {
 }
 
 func TestSmartProxyRefreshesOnConfigChange(t *testing.T) {
-	f, secrets := readyForeman()
-	c := newTestClient(f, secrets, testSmartProxy())
+	f, secrets, server := readyForeman()
+	c := newTestClient(f, secrets, server, testSmartProxy())
 	api := newFakeForemanAPI()
 	r := newSmartProxyReconciler(c, api)
 	reconcileSmartProxy(t, r)

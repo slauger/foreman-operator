@@ -1,6 +1,6 @@
 # Getting Started
 
-This guide installs the operator from a checkout and creates a Foreman with a Frontend and, optionally, a provisioning Smart Proxy. The resources follow `config/samples` and the E2E test in `tests/e2e/mvp/resources.yaml`.
+This guide installs the operator from a checkout and creates a Foreman with its frontend and, optionally, a provisioning Smart Proxy. The resources follow `config/samples` and the E2E test in `tests/e2e/mvp/resources.yaml`.
 
 !!! warning "Experimental"
     This is an unofficial, unsupported prototype. It is not affiliated with or endorsed by the Foreman project. Use a test cluster.
@@ -19,7 +19,7 @@ This guide installs the operator from a checkout and creates a Foreman with a Fr
 
 The operator detects cert-manager, the Gateway API, and OpenShift Routes when it starts. Install them before the operator, or restart the operator afterwards.
 
-The images are amd64 only, except the operator and the Frontend.
+The images are amd64 only, except the operator and the frontend.
 
 ## Install the operator
 
@@ -37,7 +37,7 @@ helm install foreman-operator charts/foreman-operator \
   --set image.tag=develop
 ```
 
-The operator image tag defaults to the chart `appVersion` `0.0.0`, for which no image is published yet, so `image.tag` is set explicitly. By default, the operator watches all namespaces and uses the image tag `develop` for Foreman, Frontend, and Smart Proxy. See the [chart README](https://github.com/slauger/foreman-operator/blob/develop/charts/foreman-operator/README.md) for all values.
+The operator image tag defaults to the chart `appVersion` `0.0.0`, for which no image is published yet, so `image.tag` is set explicitly. By default, the operator watches all namespaces and uses the image tag `develop` for Foreman, the frontend, and Smart Proxy. See the [chart README](https://github.com/slauger/foreman-operator/blob/develop/charts/foreman-operator/README.md) for all values.
 
 ## Create the namespace and database
 
@@ -51,7 +51,7 @@ The chart creates the CloudNativePG `Cluster` `foreman-db`. CloudNativePG then w
 
 ## Create the internal CA
 
-Foreman, the Frontend client verification, and Smart Proxies share one internal CA. See [Certificates](../concepts/certificates.md) for the reasoning.
+Foreman, the frontend client verification, and Smart Proxies share one internal CA. See [Certificates](../concepts/certificates.md) for the reasoning.
 
 ```yaml
 apiVersion: cert-manager.io/v1
@@ -127,9 +127,9 @@ spec:
             - containerPort: 6379
 ```
 
-## Create Foreman and Frontend
+## Create Foreman
 
-Replace `foreman.example.com` with a name that resolves to the address the Frontend is exposed on.
+Replace `foreman.example.com` with a name that resolves to the address the frontend is exposed on. The frontend runs as the container `httpd` in every web pod, so `web.replicas` also sets the number of frontends.
 
 ```yaml
 apiVersion: platform.theforeman.org/v1alpha1
@@ -149,43 +149,36 @@ spec:
     host: valkey
   web:
     replicas: 1
----
-apiVersion: platform.theforeman.org/v1alpha1
-kind: Frontend
-metadata:
-  name: foreman
-  namespace: foreman
-spec:
-  foremanRef: foreman
-  replicas: 1
-  tls:
-    server:
-      issuerRef:
-        name: foreman-internal-ca
-    clientCA:
-      issuerRef:
-        name: foreman-internal-ca
-  exposure:
-    type: Auto
+  frontend:
+    tls:
+      server:
+        issuerRef:
+          name: foreman-internal-ca
+      clientCA:
+        issuerRef:
+          name: foreman-internal-ca
+    exposure:
+      type: Auto
 ```
 
-`Auto` creates a LoadBalancer Service, or a passthrough Route on OpenShift. For a Gateway with TLS passthrough, use:
+`Auto` makes the Service `foreman-web` a LoadBalancer, or creates a passthrough Route on OpenShift. For a Gateway with TLS passthrough, use:
 
 ```yaml
-  exposure:
-    type: TLSRoute
-    gatewayRef:
-      name: foreman
-      tlsSectionName: https
-      httpSectionName: http
+  frontend:
+    exposure:
+      type: TLSRoute
+      gatewayRef:
+        name: foreman
+        tlsSectionName: https
+        httpSectionName: http
 ```
 
-For a server certificate from a public issuer, set `tls.server.issuerRef` to that issuer. Keep `tls.clientCA` on the internal CA.
+For a server certificate from a public issuer, set `frontend.tls.server.issuerRef` to that issuer. Keep `frontend.tls.clientCA` on the internal CA.
 
 ## Watch the rollout
 
 ```bash
-kubectl -n foreman get foremen,frontends
+kubectl -n foreman get foremen
 kubectl -n foreman get jobs,deployments,pods
 ```
 

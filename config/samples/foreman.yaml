@@ -19,3 +19,14 @@ spec:
     resources:
       limits:
         memory: 8Gi
+  frontend:
+    tls:
+      server:
+        issuerRef:
+          name: letsencrypt-dns01
+          kind: ClusterIssuer
+      clientCA:
+        issuerRef:
+          name: foreman-internal-ca
+    exposure:
+      type: Auto

@@ -2,7 +2,7 @@
 
 ## Project status
 
-This project is experimental. The `Foreman`, `Frontend`, and `SmartProxy` controllers exist as an MVP. Documentation must distinguish planned, implemented, and tested behavior, and name the environment a test ran in.
+This project is experimental. The `Foreman` and `SmartProxy` controllers exist as an MVP. The frontend is part of `Foreman`. Documentation must distinguish planned, implemented, and tested behavior, and name the environment a test ran in.
 
 ## Git Workflow
 
@@ -17,7 +17,7 @@ This project is experimental. The `Foreman`, `Frontend`, and `SmartProxy` contro
 Follow [Conventional Commits](https://www.conventionalcommits.org/).
 
 ```
-feat: add Frontend controller
+feat: add SmartProxy controller
 fix: use the CloudNativePG read-write service
 docs: describe the provisioning pod layout
 ci: add helm lint job
@@ -71,7 +71,7 @@ chainsaw test --config tests/e2e/chainsaw-config.yaml tests/e2e/mvp
 ```
 api/v1alpha1/              CRD type definitions (Go structs)
 cmd/                       Operator entry point
-internal/controller/       Reconcilers and builders for Foreman, Frontend, and SmartProxy
+internal/controller/       Reconcilers and builders for Foreman (including the frontend) and SmartProxy
 internal/foremanapi/       Minimal Foreman API client with OAuth 1.0a
 config/crd/bases/          Generated CRD YAML
 config/rbac/               Generated RBAC role

@@ -158,6 +158,213 @@ spec:
                 description: FQDN is the primary hostname of this Foreman instance.
                 minLength: 1
                 type: string
+              frontend:
+                description: |-
+                  Frontend configures TLS termination and exposure. It runs as a second container in
+                  every web pod.
+                properties:
+                  exposure:
+                    description: Exposure configures how clients reach Foreman.
+                    properties:
+                      annotations:
+                        additionalProperties:
+                          type: string
+                        description: Annotations are added to the created Service
+                          or Route.
+                        type: object
+                      gatewayRef:
+                        description: GatewayRef selects the Gateway and listeners
+                          for type TLSRoute.
+                        properties:
+                          httpSectionName:
+                            description: HTTPSectionName is the listener for the HTTPRoute
+                              used by installers.
+                            type: string
+                          name:
+                            description: Name of the Gateway.
+                            minLength: 1
+                            type: string
+                          namespace:
+                            description: Namespace of the Gateway. Defaults to the
+                              namespace of the Foreman.
+                            type: string
+                          tlsSectionName:
+                            description: TLSSectionName is the listener with TLS passthrough
+                              for the TLSRoute.
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      type:
+                        default: Auto
+                        description: Type selects the exposure mechanism.
+                        enum:
+                        - Auto
+                        - LoadBalancer
+                        - Route
+                        - TLSRoute
+                        - ClusterIP
+                        type: string
+                    type: object
+                    x-kubernetes-validations:
+                    - message: gatewayRef is required when type is TLSRoute
+                      rule: self.type != 'TLSRoute' || has(self.gatewayRef)
+                  image:
+                    description: Image selects the frontend container image.
+                    properties:
+                      digest:
+                        description: Digest pins the image and takes precedence over
+                          Tag.
+                        pattern: ^sha256:[a-f0-9]{64}$
+                        type: string
+                      pullPolicy:
+                        default: IfNotPresent
+                        description: PullPolicy is the image pull policy.
+                        enum:
+                        - Always
+                        - IfNotPresent
+                        - Never
+                        type: string
+                      repository:
+                        description: Repository is the image repository. The operator
+                          picks a default if empty.
+                        type: string
+                      tag:
+                        description: Tag is the image tag.
+                        type: string
+                    type: object
+                  resources:
+                    description: Resources sets the compute resources of the frontend
+                      container.
+                    properties:
+                      claims:
+                        description: |-
+                          Claims lists the names of resources, defined in spec.resourceClaims,
+                          that are used by this container.
+
+                          This field depends on the
+                          DynamicResourceAllocation feature gate.
+
+                          This field is immutable. It can only be set for containers.
+                        items:
+                          description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                          properties:
+                            name:
+                              description: |-
+                                Name must match the name of one entry in pod.spec.resourceClaims of
+                                the Pod where this field is used. It makes that resource available
+                                inside a container.
+                              type: string
+                            request:
+                              description: |-
+                                Request is the name chosen for a request in the referenced claim.
+                                If empty, everything from the claim is made available, otherwise
+                                only the result of this request.
+                              type: string
+                          required:
+                          - name
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - name
+                        x-kubernetes-list-type: map
+                      limits:
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        description: |-
+                          Limits describes the maximum amount of compute resources allowed.
+                          More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                        type: object
+                      requests:
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        description: |-
+                          Requests describes the minimum amount of compute resources required.
+                          If Requests is omitted for a container, it defaults to Limits if that is explicitly specified,
+                          otherwise to an implementation-defined value. Requests cannot exceed Limits.
+                          More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                        type: object
+                    type: object
+                  tls:
+                    description: TLS selects the server certificate and the client
+                      CA.
+                    properties:
+                      clientCA:
+                        description: ClientCA selects the CA that verifies client
+                          certificates.
+                        properties:
+                          issuerRef:
+                            description: IssuerRef requests certificates from a cert-manager
+                              issuer.
+                            properties:
+                              kind:
+                                default: Issuer
+                                description: Kind of the issuer.
+                                enum:
+                                - Issuer
+                                - ClusterIssuer
+                                type: string
+                              name:
+                                description: Name of the issuer.
+                                minLength: 1
+                                type: string
+                            required:
+                            - name
+                            type: object
+                          secretName:
+                            description: SecretName references an existing Secret
+                              with tls.crt, tls.key, and ca.crt.
+                            type: string
+                        type: object
+                        x-kubernetes-validations:
+                        - message: exactly one of issuerRef or secretName must be
+                            set
+                          rule: has(self.issuerRef) != has(self.secretName)
+                      server:
+                        description: Server selects the certificate presented to clients.
+                        properties:
+                          issuerRef:
+                            description: IssuerRef requests certificates from a cert-manager
+                              issuer.
+                            properties:
+                              kind:
+                                default: Issuer
+                                description: Kind of the issuer.
+                                enum:
+                                - Issuer
+                                - ClusterIssuer
+                                type: string
+                              name:
+                                description: Name of the issuer.
+                                minLength: 1
+                                type: string
+                            required:
+                            - name
+                            type: object
+                          secretName:
+                            description: SecretName references an existing Secret
+                              with tls.crt, tls.key, and ca.crt.
+                            type: string
+                        type: object
+                        x-kubernetes-validations:
+                        - message: exactly one of issuerRef or secretName must be
+                            set
+                          rule: has(self.issuerRef) != has(self.secretName)
+                    required:
+                    - clientCA
+                    - server
+                    type: object
+                required:
+                - tls
+                type: object
               image:
                 description: Image selects the Foreman container image.
                 properties:
@@ -312,6 +519,7 @@ spec:
             required:
             - database
             - fqdn
+            - frontend
             - tls
             - valkey
             type: object

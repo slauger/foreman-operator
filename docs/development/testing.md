@@ -29,15 +29,18 @@ chainsaw test --config tests/e2e/chainsaw-config.yaml tests/e2e/mvp
 
 | Step | Checks | Verified on the cluster |
 |---|---|---|
-| Foreman migrates and runs | Phase `Running` after the migration Job | Yes |
-| Frontend serves Foreman over the Gateway | Phase `Running`, `/api/v2/ping` through the TLSRoute | Yes |
-| Smart Proxy is registered with its features | Phase `Running`, `foremanID` set, features `DHCP DNS Logs TFTP Templates` in Foreman | Passed |
+| Foreman migrates and runs | Phase `Running` after the migration Job, for the current generation | Passed |
+| Puma has no TCP listener | The web pod listens only on ports 8080 and 8443 | Passed |
+| The frontend container serves Foreman over the Gateway | `/api/v2/ping` through the TLSRoute | Passed |
+| Smart Proxy is registered with its features | Phase `Running`, `foremanID` set, features `BMC DHCP DNS Logs TFTP Templates` in Foreman | Passed |
 | DHCP reservation reaches a client on the fake VLAN | A reservation created through the proxy API gives the client its address | Passed |
 | TFTP serves the boot loader | The client downloads `pxelinux.0` | Passed |
 | DNS record lands in BIND | A record created through the proxy API resolves | Passed |
+| DHCP state survives a new pod | After a rollout restart, the lease file and the reservation are still on the volume | Passed |
+| The BMC provider finds ipmitool | `ipmitool -V` runs in the proxy container | Passed |
 | Deleting the Smart Proxy removes it from Foreman | The finalizer unregisters the proxy | Passed |
 
-Independent of the Chainsaw steps, the OAuth signature of the operator was verified against the real Foreman on the cluster: correctly signed requests are accepted and wrongly signed requests are rejected. The full test passes on e2e-openvox both against an existing installation and from scratch, with a new namespace and an empty database.
+Independent of the Chainsaw steps, the OAuth signature of the operator was verified against the real Foreman on the cluster: correctly signed requests are accepted and wrongly signed requests are rejected. With the frontend sidecar, the full test passed on e2e-openvox both against an installation upgraded from the separate `Frontend` and from scratch, with a new namespace and an empty database.
 
 ## PXE lab
 

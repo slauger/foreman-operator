@@ -2,6 +2,7 @@ package foremanapi
 
 import (
 	"context"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"io"
@@ -50,7 +51,7 @@ func TestSignatureMatchesReference(t *testing.T) {
 }
 
 type recorded struct {
-	method, path, query, host, proto, auth, body, contentType string
+	method, path, query, host, auth, body, contentType string
 }
 
 func newTestServer(t *testing.T, status int, response string) (*Client, *recorded) {
@@ -58,12 +59,12 @@ func newTestServer(t *testing.T, status int, response string) (*Client, *recorde
 	rec := &recorded{}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
-		*rec = recorded{r.Method, r.URL.Path, r.URL.RawQuery, r.Host, r.Header.Get("X-Forwarded-Proto"), r.Header.Get("Authorization"), string(body), r.Header.Get("Content-Type")}
+		*rec = recorded{r.Method, r.URL.Path, r.URL.RawQuery, r.Host, r.Header.Get("Authorization"), string(body), r.Header.Get("Content-Type")}
 		w.WriteHeader(status)
 		_, _ = w.Write([]byte(response))
 	}))
 	t.Cleanup(srv.Close)
-	c, err := New(srv.URL, "https://foreman.example.com", "key", "secret")
+	c, err := New(srv.URL, "https://foreman.example.com", "key", "secret", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,11 +86,37 @@ func TestFindSmartProxy(t *testing.T) {
 	if !strings.Contains(rec.query, "search=name+%3D+%22pxe%22") {
 		t.Errorf("query = %q", rec.query)
 	}
-	if rec.host != "foreman.example.com" || rec.proto != "https" {
-		t.Errorf("host = %q, proto = %q", rec.host, rec.proto)
+	if rec.host != "foreman.example.com" {
+		t.Errorf("host = %q", rec.host)
 	}
 	if !strings.HasPrefix(rec.auth, "OAuth ") {
 		t.Errorf("authorization = %q", rec.auth)
+	}
+}
+
+func TestVerifiesFrontendCertificate(t *testing.T) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"results":[{"id":1,"name":"pxe"}]}`))
+	}))
+	t.Cleanup(srv.Close)
+	pool := x509.NewCertPool()
+	pool.AddCert(srv.Certificate())
+
+	// The test certificate is valid for example.com, which is sent as the server name.
+	c, err := New(srv.URL, "https://example.com", "key", "secret", pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.FindSmartProxy(context.Background(), "pxe"); err != nil {
+		t.Errorf("trusted certificate: %v", err)
+	}
+
+	untrusted, err := New(srv.URL, "https://example.com", "key", "secret", x509.NewCertPool())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := untrusted.FindSmartProxy(context.Background(), "pxe"); err == nil {
+		t.Error("an untrusted certificate must be rejected")
 	}
 }
 

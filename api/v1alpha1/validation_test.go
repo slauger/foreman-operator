@@ -22,17 +22,9 @@ func validForeman() *Foreman {
 			TLS:      issuerTLS(),
 			Database: DatabaseSpec{Cluster: CNPGClusterRef{Name: "foreman-db"}},
 			Valkey:   ValkeySpec{Host: "valkey"},
-		},
-	}
-}
-
-func validFrontend() *Frontend {
-	return &Frontend{
-		GenerateName: "test-frontend-",
-		Namespace:    "default",
-		Spec: FrontendSpec{
-			ForemanRef: "production",
-			TLS:        FrontendTLSSpec{Server: issuerTLS(), ClientCA: issuerTLS()},
+			Frontend: ForemanFrontendSpec{
+				TLS: FrontendTLSSpec{Server: issuerTLS(), ClientCA: issuerTLS()},
+			},
 		},
 	}
 }
@@ -141,14 +133,13 @@ func TestForemanDefaults(t *testing.T) {
 func TestFrontendValidation(t *testing.T) {
 	tests := []struct {
 		name    string
-		mutate  func(*Frontend)
+		mutate  func(*ForemanFrontendSpec)
 		wantErr string
 	}{
-		{name: "valid", mutate: func(_ *Frontend) {}},
 		{
 			name: "TLSRoute with gateway",
-			mutate: func(f *Frontend) {
-				f.Spec.Exposure = FrontendExposureSpec{
+			mutate: func(f *ForemanFrontendSpec) {
+				f.Exposure = FrontendExposureSpec{
 					Type:       FrontendExposureTLSRoute,
 					GatewayRef: &GatewayReference{Name: "public", TLSSectionName: "https"},
 				}
@@ -156,29 +147,29 @@ func TestFrontendValidation(t *testing.T) {
 		},
 		{
 			name: "TLSRoute without gateway",
-			mutate: func(f *Frontend) {
-				f.Spec.Exposure = FrontendExposureSpec{Type: FrontendExposureTLSRoute}
+			mutate: func(f *ForemanFrontendSpec) {
+				f.Exposure = FrontendExposureSpec{Type: FrontendExposureTLSRoute}
 			},
 			wantErr: "gatewayRef is required when type is TLSRoute",
 		},
 		{
 			name: "unknown exposure",
-			mutate: func(f *Frontend) {
-				f.Spec.Exposure = FrontendExposureSpec{Type: "NodePort"}
+			mutate: func(f *ForemanFrontendSpec) {
+				f.Exposure = FrontendExposureSpec{Type: "NodePort"}
 			},
-			wantErr: "spec.exposure.type",
+			wantErr: "spec.frontend.exposure.type",
 		},
 		{
 			name:    "missing client CA",
-			mutate:  func(f *Frontend) { f.Spec.TLS.ClientCA = TLSSpec{} },
+			mutate:  func(f *ForemanFrontendSpec) { f.TLS.ClientCA = TLSSpec{} },
 			wantErr: "exactly one of issuerRef or secretName must be set",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			obj := validFrontend()
-			tt.mutate(obj)
+			obj := validForeman()
+			tt.mutate(&obj.Spec.Frontend)
 			checkCreate(t, obj, tt.wantErr)
 		})
 	}

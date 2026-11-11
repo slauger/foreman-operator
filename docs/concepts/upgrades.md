@@ -9,7 +9,7 @@ Until `Release` exists, an upgrade is a new image in `Foreman.spec.image`, with 
 
 The `Foreman` controller computes a migration hash over the image reference and the sorted plugin list. When it differs from `status.appliedMigrationHash`:
 
-1. All web and Dynflow Deployments are scaled to zero.
+1. All web and Dynflow Deployments are scaled to zero. The frontend runs in the web pods, so Foreman is unreachable until the rollout.
 2. The controller waits until no Foreman pods remain, except migration pods.
 3. Older migration Jobs are deleted, and the Job `<name>-migrate-<hash>` runs `db:migrate`, `db:seed`, and `upgrade:run`.
 4. After the Job completes, the hash is recorded and the Deployments roll out with the new image.

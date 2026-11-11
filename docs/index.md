@@ -15,8 +15,7 @@ A Kubernetes Operator that maps [Foreman](https://theforeman.org/) and Smart Pro
 
 | Kind | State | Purpose |
 |---|---|---|
-| **Foreman** | Implemented | FQDN, image, database and Valkey references; web, Dynflow, and migrations |
-| **Frontend** | Implemented | Mutual TLS, exposure |
+| **Foreman** | Implemented | FQDN, image, database and Valkey references; web with the frontend sidecar for mutual TLS and exposure, Dynflow, and migrations |
 | **SmartProxy** | Implemented for `Provisioning` | One registered proxy with networks and features |
 | **Release** | Planned | Compatible image sets, ordered upgrades |
 | **Candlepin** | Planned | Subscription service for Katello |
@@ -26,7 +25,7 @@ Start with [Getting Started](guides/getting-started.md) to install the operator,
 
 ## What is verified
 
-On a k3s cluster with cert-manager, CloudNativePG, Multus, and Envoy Gateway, the Chainsaw E2E test passes from an empty namespace: the Foreman migration, the web and Dynflow workloads, the Frontend through a Gateway API TLSRoute, the Smart Proxy registration with the features DHCP, DNS, Logs, Templates, and TFTP, a DHCP reservation that reaches a client on a fake VLAN, a TFTP download of the boot loader, a DNS record in BIND through nsupdate, and unregistration on delete. Not tested: a real VLAN, a real NIC, real PXE firmware, and OpenShift.
+On a k3s cluster with cert-manager, CloudNativePG, Multus, and Envoy Gateway, the Chainsaw E2E test passed from an empty namespace: the Foreman migration, the web and Dynflow workloads, the frontend sidecar through a Gateway API TLSRoute with Puma reachable only over its Unix socket, the Smart Proxy registration with the features BMC, DHCP, DNS, Logs, Templates, and TFTP, a DHCP reservation that reaches a client on a fake VLAN and survives a new pod, a TFTP download of the boot loader, a DNS record in BIND through nsupdate, and unregistration on delete. Not tested: a real VLAN, a real NIC, real PXE firmware, and OpenShift.
 
 ## Scope
 

@@ -5,7 +5,6 @@ All resources use the API group `platform.theforeman.org/v1alpha1`.
 | Kind | Reference |
 |---|---|
 | Foreman | [Foreman](foreman.md) |
-| Frontend | [Frontend](frontend.md) |
 | SmartProxy | [SmartProxy](smartproxy.md) |
 
 !!! note
@@ -39,7 +38,7 @@ Default repositories:
 | Component | Repository |
 |---|---|
 | Foreman | `ghcr.io/slauger/foreman-operator-foreman` |
-| Frontend | `ghcr.io/slauger/foreman-operator-frontend` |
+| Frontend (`spec.frontend.image`) | `ghcr.io/slauger/foreman-operator-frontend` |
 | Smart Proxy | `ghcr.io/slauger/foreman-operator-smart-proxy` |
 | Boot files | `ghcr.io/slauger/foreman-operator-boot-files` |
 

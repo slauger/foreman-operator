@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: List
 items:
-  # Internal CA for Foreman, Frontend client certificates, and Smart Proxies.
+  # Internal CA for Foreman, frontend client certificates, and Smart Proxies.
   - apiVersion: cert-manager.io/v1
     kind: Issuer
     metadata:

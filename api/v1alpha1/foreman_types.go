@@ -68,6 +68,10 @@ type ForemanSpec struct {
 	// +optional
 	Web ForemanWebSpec `json:"web,omitempty"`
 
+	// Frontend configures TLS termination and exposure. It runs as a second container in
+	// every web pod.
+	Frontend ForemanFrontendSpec `json:"frontend"`
+
 	// Dynflow configures the task workloads. Foreman uses Dynflow as its ActiveJob backend.
 	// +kubebuilder:default={}
 	// +optional

@@ -13,7 +13,7 @@ func TestAddToSchemeRegistersKinds(t *testing.T) {
 		t.Fatalf("AddToScheme: %v", err)
 	}
 
-	for _, kind := range []string{"Foreman", "ForemanList", "Frontend", "FrontendList", "SmartProxy", "SmartProxyList"} {
+	for _, kind := range []string{"Foreman", "ForemanList", "SmartProxy", "SmartProxyList"} {
 		if !s.Recognizes(GroupVersion.WithKind(kind)) {
 			t.Errorf("kind %s is not registered", kind)
 		}

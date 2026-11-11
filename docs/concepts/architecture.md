@@ -1,7 +1,7 @@
 # Architecture
 
 !!! note "Status"
-    This page describes the target design. The CRD types exist. The controllers do not.
+    The `Foreman`, `Frontend`, and `SmartProxy` controllers are implemented as an MVP. The `Execution` profile, recurring tasks, `Release`, and the Katello kinds are target design. Rows and sections below say which parts are planned.
 
 ## Overview
 
@@ -9,7 +9,7 @@ The operator follows the standard Kubernetes operator pattern. Controllers watch
 
 ```mermaid
 flowchart LR
-  Users[Users and API clients] --> Edge[Route or LoadBalancer, TLS passthrough]
+  Users[Users and API clients] --> Edge[Route, LoadBalancer, or TLSRoute, TLS passthrough]
   Build[Hosts being built] -->|HTTP unattended| Edge
   Edge --> Frontend[Frontend, mutual TLS]
   Frontend --> Web[Foreman web]
@@ -20,11 +20,30 @@ flowchart LR
   Web --> Valkey
 
   Web <-->|mutual TLS| Prov[SmartProxy: Provisioning]
-  Web <-->|mutual TLS| Exec[SmartProxy: Execution]
-  Exec --> Managed[Managed hosts]
+  Web <-.->|planned| Exec[SmartProxy: Execution]
+  Exec -.-> Managed[Managed hosts]
   Prov -->|Multus| Net[Provisioning networks]
   Build -->|DHCP, TFTP, templates| Net
 ```
+
+## Operator startup
+
+At startup, the operator checks which optional APIs the cluster serves and only watches kinds that exist:
+
+| Capability | Detected through | Used for |
+|---|---|---|
+| cert-manager | `cert-manager.io/v1` `Certificate` | Every `tls.issuerRef` |
+| Gateway API | `gateway.networking.k8s.io/v1` `TLSRoute` and `HTTPRoute` | Exposure `TLSRoute` |
+| OpenShift | `route.openshift.io/v1` `Route` | Exposure `Route` and `Auto`, no `fsGroup` in pod security contexts |
+
+A resource that needs a missing capability fails with a reconcile error. APIs installed after the operator started are only seen after a restart.
+
+| Flag | Default | Description |
+|---|---|---|
+| `--default-image-tag` | `develop` | Tag of the component images when a resource names neither tag nor digest |
+| `--watch-namespace` | empty | Restricts the operator to one namespace. Empty watches all namespaces |
+| `--leader-elect` | `false` | Enables leader election |
+| `--metrics-secure` | `false` | Serves metrics over HTTPS with authentication and authorization |
 
 ## CRD Relationships
 
@@ -42,18 +61,18 @@ flowchart TD
 
 ## Workloads
 
-| Component | Workload | Replicas | Process |
-|---|---|---|---|
-| Frontend | Deployment | 2+ | Apache `httpd` with `mod_ssl` |
-| Foreman web | Deployment | 2+ | Rails server on port 3000 |
-| Dynflow orchestrator | Deployment, Recreate | 1 | Sidekiq with the orchestrator configuration |
-| Dynflow worker | Deployment | 1+ | Sidekiq with the worker configuration |
-| Dynflow hosts queue | Deployment | 0+ | Sidekiq with the hosts queue configuration |
-| Recurring tasks | CronJob | n/a | `foreman-rake cron:hourly`, daily, weekly, monthly |
-| Foreman migration | Job | n/a | `db:migrate`, `db:seed`, and `upgrade:run` |
-| Smart Proxy | Deployment, Recreate | 1 | See [Smart Proxy](smart-proxy.md) |
+| Component | Workload | Replicas | Process | State |
+|---|---|---|---|---|
+| Frontend | Deployment | 2 by default | Apache `httpd` with `mod_ssl` | Implemented |
+| Foreman web | Deployment | 2 by default | Rails with Puma on port 3000 | Implemented |
+| Dynflow orchestrator | Deployment, Recreate | 1 | Sidekiq with the orchestrator configuration | Implemented |
+| Dynflow worker | Deployment | 1 by default | Sidekiq with the worker configuration | Implemented |
+| Dynflow hosts queue | Deployment | 0 by default | Sidekiq with the hosts queue configuration | Implemented |
+| Foreman migration | Job | n/a | `db:migrate`, `db:seed`, and `upgrade:run` | Implemented |
+| Smart Proxy | Deployment, Recreate | 1 | See [Smart Proxy](smart-proxy.md) | Implemented for `Provisioning` |
+| Recurring tasks | CronJob | n/a | `foreman-rake cron:hourly`, daily, weekly, monthly | Planned |
 
-The process split follows the `foremanctl` deployment. Puma workers are derived from the container limits.
+The process split follows the `foremanctl` deployment. Puma workers are derived from the memory limit of the web container, about 1.5 GiB per worker, between 1 and 16.
 
 Foreman core uses Dynflow as its ActiveJob backend, independent of Katello, for example for report templates, notifications, and event subscribers. The orchestrator and one worker are therefore part of every deployment. The hosts queue is only needed for Remote Execution, so it defaults to zero replicas.
 
@@ -67,7 +86,9 @@ Foreman core uses Dynflow as its ActiveJob backend, independent of Katello, for 
 ## Patterns
 
 - One builder per child object.
-- Configuration through mounted files, not entrypoint scripts.
-- A hash of rendered configuration and certificates in the pod template triggers rollouts.
-- The annotation `platform.theforeman.org/paused` suspends reconciliation of one object.
-- Read-only root filesystems with explicit `emptyDir` mounts, where the applications allow it.
+- Configuration through mounted files, generated by the operator, not entrypoint scripts.
+- A checksum of the rendered configuration in the pod template annotation `platform.theforeman.org/config-checksum` triggers rollouts. It includes the data of the certificate Secrets, and healthy resources are reconciled every 10 minutes, so a certificate renewed by cert-manager rolls the pods out within that interval.
+- The annotation `platform.theforeman.org/paused: "true"` suspends reconciliation of one object.
+- Objects that must survive the custom resource, such as `<name>-secrets` of a Foreman and the PVC of a Smart Proxy, have no owner reference.
+- All pods disable service links.
+- Read-only root filesystems with explicit `emptyDir` mounts, where the applications allow it. Planned, not set yet.

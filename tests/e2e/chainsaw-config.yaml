@@ -1,0 +1,14 @@
+apiVersion: chainsaw.kyverno.io/v1alpha2
+kind: Configuration
+metadata:
+  name: e2e
+spec:
+  cleanup:
+    skipDelete: true
+  execution:
+    parallel: 1
+  timeouts:
+    apply: 1m
+    assert: 20m
+    cleanup: 2m
+    exec: 5m

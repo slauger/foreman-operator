@@ -1,7 +1,7 @@
 # Plugins
 
 !!! note "Status"
-    Target design. `Foreman.spec.plugins` exists in the API.
+    Target design. `Foreman.spec.plugins` exists in the API, and changing it triggers a migration because the list is part of the migration hash. The default Foreman image contains no plugins yet, and the operator does not enable plugins or keep a catalog.
 
 ## Model
 
@@ -20,9 +20,9 @@ Selecting plugins at runtime needs support in the image. It must be implemented 
 
 | Plugin | Stage | Package status |
 |---|---|---|
-| `foreman_discovery` | Base | Resolved on UBI 9 |
-| `foreman_remote_execution` | Base | Resolved on UBI 9 |
-| `foreman_puppet` | To be decided | Resolved on UBI 9 |
+| `foreman_discovery` | Base | Resolved on UBI 9, not in the image yet |
+| `foreman_remote_execution` | Base | Resolved on UBI 9, not in the image yet |
+| `foreman_puppet` | To be decided | Resolved on UBI 9, not in the image yet |
 | `foreman_bootdisk` | Later | Packages missing on UBI 9 |
 | `katello` | [Katello](katello.md) | Not checked |
 

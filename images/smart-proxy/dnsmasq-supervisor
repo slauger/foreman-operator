@@ -1,0 +1,86 @@
+#!/bin/bash
+# Runs dnsmasq next to the unprivileged Foreman Smart Proxy in the same pod.
+#
+# The supervisor runs as root, prepares the directory shared with the proxy, optionally
+# assigns a static address to the provisioning interface and starts dnsmasq with a reduced
+# capability bounding set (dnsmasq drops to its own user afterwards). The proxy cannot
+# signal dnsmasq, so its reload_cmd creates a trigger file which is turned into a SIGHUP.
+# dnsmasq runs as its own user after startup, so signalling it requires CAP_KILL.
+#
+# Environment:
+#   DNSMASQ_CONFIG  dnsmasq configuration file (required)
+#   RELOAD_TRIGGER  trigger file created by the proxy
+#                   (default: /var/lib/foreman-proxy/dhcp/.reload)
+#   DHCP_DIR        target_dir of smart_proxy_dhcp_dnsmasq
+#                   (default: /var/lib/foreman-proxy/dhcp)
+#   NET_INTERFACE   interface to configure, e.g. net1 (optional)
+#   NET_ADDRESS     address in CIDR notation, e.g. 10.99.0.10/24 (optional)
+set -euo pipefail
+
+: "${DNSMASQ_CONFIG:?DNSMASQ_CONFIG must point to the dnsmasq configuration file}"
+RELOAD_TRIGGER="${RELOAD_TRIGGER:-/var/lib/foreman-proxy/dhcp/.reload}"
+DHCP_DIR="${DHCP_DIR:-/var/lib/foreman-proxy/dhcp}"
+NET_INTERFACE="${NET_INTERFACE:-}"
+NET_ADDRESS="${NET_ADDRESS:-}"
+
+log() {
+    echo "dnsmasq-supervisor: $*" >&2
+}
+
+if [[ ! -r "${DNSMASQ_CONFIG}" ]]; then
+    log "configuration ${DNSMASQ_CONFIG} is not readable"
+    exit 1
+fi
+
+# Static address without an IPAM plugin.
+if [[ -n "${NET_INTERFACE}" && -n "${NET_ADDRESS}" ]]; then
+    if ip -o addr show dev "${NET_INTERFACE}" | awk '{print $4}' | grep -qxF "${NET_ADDRESS}"; then
+        log "${NET_ADDRESS} already present on ${NET_INTERFACE}"
+    else
+        log "adding ${NET_ADDRESS} to ${NET_INTERFACE}"
+        ip addr add "${NET_ADDRESS}" dev "${NET_INTERFACE}"
+    fi
+    ip link set dev "${NET_INTERFACE}" up
+elif [[ -n "${NET_INTERFACE}" || -n "${NET_ADDRESS}" ]]; then
+    log "NET_INTERFACE and NET_ADDRESS must be set together"
+    exit 1
+fi
+
+# Layout expected by smart_proxy_dhcp_dnsmasq. Group root may write, so the proxy running
+# with a random UID and GID 0 can manage reservations and create the trigger file.
+mkdir -p "${DHCP_DIR}/dhcphosts"
+[[ -e "${DHCP_DIR}/dhcpopts.conf" ]] || touch "${DHCP_DIR}/dhcpopts.conf"
+for path in "${DHCP_DIR}" "${DHCP_DIR}/dhcphosts" "${DHCP_DIR}/dhcpopts.conf"; do
+    if [[ "$(stat -c %u "${path}")" == 0 ]]; then
+        chgrp 0 "${path}"
+        chmod g+w,o+rX "${path}"
+    fi
+done
+rm -f "${RELOAD_TRIGGER}"
+
+setpriv --bounding-set=-all,+net_admin,+net_raw,+net_bind_service,+setuid,+setgid \
+    --inh-caps=-all \
+    dnsmasq --keep-in-foreground --conf-file="${DNSMASQ_CONFIG}" &
+pid=$!
+log "started dnsmasq (pid ${pid})"
+
+trap 'kill -TERM "${pid}" || log "cannot stop dnsmasq (CAP_KILL missing?)"' TERM INT
+
+# Liveness is checked through /proc: kill -0 fails without CAP_KILL once dnsmasq has
+# dropped its privileges. bash reaps the exited child, which removes the entry.
+while [[ -e "/proc/${pid}" ]]; do
+    if [[ -e "${RELOAD_TRIGGER}" ]]; then
+        rm -f "${RELOAD_TRIGGER}"
+        if kill -HUP "${pid}"; then
+            log "reloaded dnsmasq"
+        else
+            log "cannot reload dnsmasq (CAP_KILL missing?)"
+        fi
+    fi
+    sleep 1
+done
+
+rc=0
+wait "${pid}" || rc=$?
+log "dnsmasq exited with code ${rc}"
+exit "${rc}"

@@ -74,6 +74,7 @@ nav:
       - Katello: concepts/katello.md
       - Migration: concepts/migration.md
   - Guides:
+      - Getting Started: guides/getting-started.md
       - Supply Chain Security: guides/supply-chain-security.md
   - Reference:
       - Overview: reference/index.md

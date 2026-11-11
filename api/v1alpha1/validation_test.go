@@ -42,17 +42,16 @@ func validSmartProxy() *SmartProxy {
 		GenerateName: "test-proxy-",
 		Namespace:    "default",
 		Spec: SmartProxySpec{
-			ForemanRef:     "production",
-			Profile:        SmartProxyProfileProvisioning,
-			URL:            "https://proxy.example.com:8443",
-			TLS:            issuerTLS(),
-			OAuthSecretRef: "foreman-proxy-oauth",
-			Networks:       []SmartProxyNetwork{{Attachment: "vlan100", Address: "192.0.2.10/24"}},
+			ForemanRef: "production",
+			Profile:    SmartProxyProfileProvisioning,
+			URL:        "https://proxy.example.com:8443",
+			TLS:        issuerTLS(),
+			Networks:   []SmartProxyNetwork{{Attachment: "vlan100", Address: "192.0.2.10/24"}},
 			Features: SmartProxyFeatures{
 				TFTP: &TFTPFeature{},
 				DHCP: &DHCPFeature{
 					Provider: DHCPProviderDnsmasq,
-					Subnets:  []DHCPSubnet{{Network: "192.0.2.0/24"}},
+					Subnets:  []DHCPSubnet{{Network: "192.0.2.0/24", Range: "192.0.2.100-192.0.2.200"}},
 				},
 			},
 			Storage: &SmartProxyStorage{Size: resource.MustParse("5Gi")},
@@ -228,6 +227,16 @@ func TestSmartProxyValidation(t *testing.T) {
 			name:    "dnsmasq without network",
 			mutate:  func(p *SmartProxy) { p.Spec.Networks = nil },
 			wantErr: "the dnsmasq provider requires at least one network",
+		},
+		{
+			name:    "dnsmasq without range",
+			mutate:  func(p *SmartProxy) { p.Spec.Features.DHCP.Subnets[0].Range = "" },
+			wantErr: "the dnsmasq provider requires a range",
+		},
+		{
+			name:    "malformed range",
+			mutate:  func(p *SmartProxy) { p.Spec.Features.DHCP.Subnets[0].Range = "192.0.2.100" },
+			wantErr: "range",
 		},
 		{
 			name: "dnsmasq with two subnets",

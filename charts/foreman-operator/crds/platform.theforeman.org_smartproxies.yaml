@@ -1,0 +1,468 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: smartproxies.platform.theforeman.org
+spec:
+  group: platform.theforeman.org
+  names:
+    kind: SmartProxy
+    listKind: SmartProxyList
+    plural: smartproxies
+    singular: smartproxy
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.profile
+      name: Profile
+      type: string
+    - jsonPath: .spec.url
+      name: URL
+      type: string
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          SmartProxy is the Schema for the smartproxies API.
+          Each resource is one Smart Proxy registered in Foreman, always with one replica.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: SmartProxySpec defines the desired state of SmartProxy.
+            properties:
+              features:
+                description: Features configures the enabled Smart Proxy features.
+                properties:
+                  ansible:
+                    description: Ansible enables the Ansible feature.
+                    type: object
+                  bmc:
+                    description: BMC enables the BMC feature.
+                    properties:
+                      defaultProvider:
+                        description: DefaultProvider selects the BMC provider.
+                        enum:
+                        - ipmitool
+                        - freeipmi
+                        - redfish
+                        - shell
+                        - ssh
+                        type: string
+                    type: object
+                  dhcp:
+                    description: DHCP enables the DHCP feature.
+                    properties:
+                      provider:
+                        description: Provider selects the DHCP provider.
+                        enum:
+                        - dnsmasq
+                        - infoblox
+                        type: string
+                      subnets:
+                        description: Subnets lists the subnets served by this proxy.
+                        items:
+                          description: DHCPSubnet describes one served subnet.
+                          properties:
+                            dnsServers:
+                              description: DNSServers are announced to hosts.
+                              items:
+                                type: string
+                              type: array
+                            gateway:
+                              description: Gateway is announced as the default router.
+                                Without it, no router is announced.
+                              type: string
+                            network:
+                              description: Network is the subnet in CIDR notation.
+                              minLength: 1
+                              type: string
+                            range:
+                              description: Range is the dynamic range as "first-last".
+                                Without it, only reserved hosts get an address.
+                              pattern: ^[0-9.]+-[0-9.]+$
+                              type: string
+                          required:
+                          - network
+                          type: object
+                        minItems: 1
+                        type: array
+                    required:
+                    - provider
+                    - subnets
+                    type: object
+                  dns:
+                    description: DNS enables the DNS feature.
+                    properties:
+                      keySecretRef:
+                        description: KeySecretRef names the Secret with the TSIG key
+                          under "key".
+                        type: string
+                      provider:
+                        default: dns_nsupdate
+                        description: Provider selects the DNS provider.
+                        enum:
+                        - dns_nsupdate
+                        - dns_nsupdate_gss
+                        type: string
+                      server:
+                        description: Server is the DNS server to update.
+                        minLength: 1
+                        type: string
+                    required:
+                    - server
+                    type: object
+                  httpBoot:
+                    description: HTTPBoot enables the httpboot feature.
+                    type: object
+                  remoteExecutionSSH:
+                    description: RemoteExecutionSSH enables Remote Execution over
+                      SSH.
+                    properties:
+                      sshKeySecretRef:
+                        description: SSHKeySecretRef names the Secret with "id_rsa"
+                          and "id_rsa.pub".
+                        minLength: 1
+                        type: string
+                    required:
+                    - sshKeySecretRef
+                    type: object
+                  templates:
+                    description: Templates enables the templates feature.
+                    properties:
+                      url:
+                        description: URL is the address hosts use to fetch templates.
+                        minLength: 1
+                        type: string
+                    required:
+                    - url
+                    type: object
+                  tftp:
+                    description: TFTP enables the TFTP feature.
+                    properties:
+                      bootFiles:
+                        description: BootFiles selects the image whose PXE boot loaders
+                          are copied into the TFTP root.
+                        properties:
+                          digest:
+                            description: Digest pins the image and takes precedence
+                              over Tag.
+                            pattern: ^sha256:[a-f0-9]{64}$
+                            type: string
+                          pullPolicy:
+                            default: IfNotPresent
+                            description: PullPolicy is the image pull policy.
+                            enum:
+                            - Always
+                            - IfNotPresent
+                            - Never
+                            type: string
+                          repository:
+                            description: Repository is the image repository. The operator
+                              picks a default if empty.
+                            type: string
+                          tag:
+                            description: Tag is the image tag.
+                            type: string
+                        type: object
+                      serverName:
+                        description: ServerName overrides the TFTP server name announced
+                          to hosts.
+                        type: string
+                    type: object
+                type: object
+              foremanRef:
+                description: ForemanRef names the Foreman this proxy registers with.
+                minLength: 1
+                type: string
+              image:
+                description: Image selects the Smart Proxy container image.
+                properties:
+                  digest:
+                    description: Digest pins the image and takes precedence over Tag.
+                    pattern: ^sha256:[a-f0-9]{64}$
+                    type: string
+                  pullPolicy:
+                    default: IfNotPresent
+                    description: PullPolicy is the image pull policy.
+                    enum:
+                    - Always
+                    - IfNotPresent
+                    - Never
+                    type: string
+                  repository:
+                    description: Repository is the image repository. The operator
+                      picks a default if empty.
+                    type: string
+                  tag:
+                    description: Tag is the image tag.
+                    type: string
+                type: object
+              networks:
+                description: Networks attaches the pod to secondary networks through
+                  Multus.
+                items:
+                  description: SmartProxyNetwork attaches the pod to a secondary network.
+                  properties:
+                    address:
+                      description: Address is the static address in CIDR notation.
+                      minLength: 1
+                      type: string
+                    attachment:
+                      description: Attachment names a NetworkAttachmentDefinition
+                        in the same namespace.
+                      minLength: 1
+                      type: string
+                  required:
+                  - address
+                  - attachment
+                  type: object
+                type: array
+              profile:
+                description: Profile selects the feature set and the required privileges.
+                enum:
+                - Provisioning
+                - Execution
+                type: string
+              resources:
+                description: Resources sets the compute resources of the proxy container.
+                properties:
+                  claims:
+                    description: |-
+                      Claims lists the names of resources, defined in spec.resourceClaims,
+                      that are used by this container.
+
+                      This field depends on the
+                      DynamicResourceAllocation feature gate.
+
+                      This field is immutable. It can only be set for containers.
+                    items:
+                      description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                      properties:
+                        name:
+                          description: |-
+                            Name must match the name of one entry in pod.spec.resourceClaims of
+                            the Pod where this field is used. It makes that resource available
+                            inside a container.
+                          type: string
+                        request:
+                          description: |-
+                            Request is the name chosen for a request in the referenced claim.
+                            If empty, everything from the claim is made available, otherwise
+                            only the result of this request.
+                          type: string
+                      required:
+                      - name
+                      type: object
+                    type: array
+                    x-kubernetes-list-map-keys:
+                    - name
+                    x-kubernetes-list-type: map
+                  limits:
+                    additionalProperties:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                    description: |-
+                      Limits describes the maximum amount of compute resources allowed.
+                      More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                    type: object
+                  requests:
+                    additionalProperties:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                    description: |-
+                      Requests describes the minimum amount of compute resources required.
+                      If Requests is omitted for a container, it defaults to Limits if that is explicitly specified,
+                      otherwise to an implementation-defined value. Requests cannot exceed Limits.
+                      More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                    type: object
+                type: object
+              storage:
+                description: Storage configures a persistent volume for the TFTP root.
+                  DHCP state is not persisted yet.
+                properties:
+                  size:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    description: Size of the volume.
+                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                    x-kubernetes-int-or-string: true
+                  storageClass:
+                    description: StorageClass of the volume. Empty uses the cluster
+                      default.
+                    type: string
+                required:
+                - size
+                type: object
+              tls:
+                description: TLS selects the source of the server and client certificates.
+                properties:
+                  issuerRef:
+                    description: IssuerRef requests certificates from a cert-manager
+                      issuer.
+                    properties:
+                      kind:
+                        default: Issuer
+                        description: Kind of the issuer.
+                        enum:
+                        - Issuer
+                        - ClusterIssuer
+                        type: string
+                      name:
+                        description: Name of the issuer.
+                        minLength: 1
+                        type: string
+                    required:
+                    - name
+                    type: object
+                  secretName:
+                    description: SecretName references an existing Secret with tls.crt,
+                      tls.key, and ca.crt.
+                    type: string
+                type: object
+                x-kubernetes-validations:
+                - message: exactly one of issuerRef or secretName must be set
+                  rule: has(self.issuerRef) != has(self.secretName)
+              url:
+                description: URL is the address registered in Foreman. Its hostname
+                  must match the certificate.
+                pattern: ^https://
+                type: string
+            required:
+            - features
+            - foremanRef
+            - profile
+            - tls
+            - url
+            type: object
+            x-kubernetes-validations:
+            - message: the Execution profile does not support dhcp, tftp, or dns
+              rule: self.profile != 'Execution' || (!has(self.features.dhcp) && !has(self.features.tftp)
+                && !has(self.features.dns))
+            - message: the Provisioning profile does not support remoteExecutionSSH
+                or ansible
+              rule: self.profile != 'Provisioning' || (!has(self.features.remoteExecutionSSH)
+                && !has(self.features.ansible))
+            - message: the dnsmasq provider requires at least one network
+              rule: '!(has(self.features.dhcp) && self.features.dhcp.provider == ''dnsmasq'')
+                || (has(self.networks) && size(self.networks) > 0)'
+            - message: the dnsmasq provider supports exactly one subnet per SmartProxy
+              rule: '!(has(self.features.dhcp) && self.features.dhcp.provider == ''dnsmasq'')
+                || size(self.features.dhcp.subnets) == 1'
+            - message: the dnsmasq provider requires a range
+              rule: '!(has(self.features.dhcp) && self.features.dhcp.provider == ''dnsmasq'')
+                || self.features.dhcp.subnets.all(s, has(s.range))'
+          status:
+            description: SmartProxyStatus defines the observed state of SmartProxy.
+            properties:
+              conditions:
+                description: Conditions represent the latest observations.
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              foremanID:
+                description: ForemanID is the identifier assigned by Foreman on registration.
+                format: int64
+                type: integer
+              observedGeneration:
+                description: ObservedGeneration is the generation last processed by
+                  the controller.
+                format: int64
+                type: integer
+              phase:
+                description: Phase is the current lifecycle phase.
+                type: string
+              registeredChecksum:
+                description: |-
+                  RegisteredChecksum identifies the URL, configuration, and certificate whose features were
+                  last refreshed in Foreman. A change triggers a refresh.
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

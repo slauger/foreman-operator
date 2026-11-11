@@ -1,0 +1,65 @@
+apiVersion: platform.theforeman.org/v1alpha1
+kind: Foreman
+metadata:
+  name: foreman
+spec:
+  fqdn: e2e-openvox.lnxlabs.de
+  tls:
+    issuerRef:
+      name: foreman-internal-ca
+  database:
+    cluster:
+      name: foreman-db
+  valkey:
+    host: valkey
+  web:
+    replicas: 1
+---
+apiVersion: platform.theforeman.org/v1alpha1
+kind: Frontend
+metadata:
+  name: foreman
+spec:
+  foremanRef: foreman
+  replicas: 1
+  tls:
+    server:
+      issuerRef:
+        name: foreman-internal-ca
+    clientCA:
+      issuerRef:
+        name: foreman-internal-ca
+  exposure:
+    type: TLSRoute
+    gatewayRef:
+      name: foreman
+      tlsSectionName: https
+      httpSectionName: http
+---
+apiVersion: platform.theforeman.org/v1alpha1
+kind: SmartProxy
+metadata:
+  name: pxe
+spec:
+  foremanRef: foreman
+  profile: Provisioning
+  url: https://pxe.foreman-e2e.svc:8443
+  tls:
+    issuerRef:
+      name: foreman-internal-ca
+  networks:
+    - attachment: pxe
+      address: 10.99.0.10/24
+  features:
+    tftp: {}
+    templates:
+      url: http://10.99.0.10:8000
+    dhcp:
+      provider: dnsmasq
+      subnets:
+        - network: 10.99.0.0/24
+          range: 10.99.0.100-10.99.0.150
+          gateway: 10.99.0.1
+    dns:
+      server: bind.foreman-e2e.svc
+      keySecretRef: tsig

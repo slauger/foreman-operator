@@ -1,26 +1,38 @@
 # Smart Proxy
 
 !!! note "Status"
-    Target design. The `SmartProxy` CRD exists. No controller or image exists yet.
+    The `SmartProxy` controller and image are implemented for the `Provisioning` profile. Registration through OAuth is covered by the E2E test, but has not been run on a cluster yet; the OAuth signature itself was verified against a real Foreman. The `Execution` profile and off-cluster proxies are target design.
 
-Each `SmartProxy` is one proxy registered in Foreman and always has one replica. Its state belongs to one pod: the Dynflow core keeps state in memory by default, and provisioning data lives on a volume.
+Each `SmartProxy` is one proxy registered in Foreman and always has one replica. Its state belongs to one pod: the Dynflow core keeps state in memory by default, and the TFTP root lives on a volume.
 
-## Identity and registration
+## Identity
 
 | Setting | Purpose |
 |---|---|
 | `spec.url` | The URL registered in Foreman. Foreman validates the proxy certificate against this hostname. |
 | `trusted_hosts` | Holds the CN of Foreman's client certificate, which equals `Foreman.spec.fqdn`. |
-| `permitted_hosts` | Lists the names used to reach the proxy. |
+| `foreman_url` | `https://` plus `Foreman.spec.fqdn`, used by the proxy for template and callback requests. |
 
-The operator registers the proxy through the Foreman API with the OAuth credentials from `spec.oauthSecretRef`, and removes it through a finalizer.
+## Registration
+
+The operator registers each proxy through the Foreman API with OAuth 1.0a:
+
+- The `Foreman` controller generates `oauth-consumer-key` and `oauth-consumer-secret` in `<name>-secrets` and sets `oauth_active: true` and `oauth_map_users: false` in `settings.yaml`.
+- The `SmartProxy` controller connects to the in-cluster Service `<foreman>-web` on port 3000, but sends the public host and `X-Forwarded-Proto: https`, and signs the request for the public URL, because Foreman verifies the signature against that URL.
+- It registers only after the proxy Deployment is available and the `Foreman` is `Ready`.
+- It looks up the proxy by name, the name of the `SmartProxy` resource. It creates the proxy if it does not exist, or adopts the existing one, and records the ID in `status.foremanID`.
+- When the generation changes, it updates name and URL and refreshes the features, then records `status.registeredGeneration`.
+- If the proxy was removed in Foreman by hand, it registers it again.
+- The finalizer `platform.theforeman.org/smart-proxy-registration` removes the proxy from Foreman when the resource is deleted. If the `Foreman` is gone or being deleted, the finalizer is removed without calling Foreman.
+
+Registration errors set reason `RegistrationFailed` and are retried every 30 seconds.
 
 ## Profiles
 
 | Profile | Features | Network | Privileges |
 |---|---|---|---|
 | `Provisioning` | `tftp`, `dhcp`, `dns`, `bmc`, `templates`, `httpBoot` | Multus | Dedicated, see [Provisioning](provisioning.md) |
-| `Execution` | `remoteExecutionSSH`, `ansible` | Pod network with egress to hosts | None beyond the default |
+| `Execution` | `remoteExecutionSSH`, `ansible` | Pod network with egress to hosts | None beyond the default. Not implemented: the features are accepted by the API but not configured |
 
 A third profile for Katello content mirrors will be designed with [Katello](katello.md).
 
@@ -41,6 +53,6 @@ A feature and the service it controls share a pod, because they share files. DHC
 
 ## Off-cluster proxies
 
-A proxy outside the cluster cannot use cert-manager directly. The operator will export a certificate bundle for it, similar to the `auth-bundle` command of `foremanctl`.
+A proxy outside the cluster cannot use cert-manager directly. The operator could export a certificate bundle for it, similar to the `auth-bundle` command of `foremanctl`.
 
 Environments in which Foreman provisions the nodes of its own cluster must keep a proxy outside that cluster. A proxy inside the cluster cannot rebuild it after a failure.

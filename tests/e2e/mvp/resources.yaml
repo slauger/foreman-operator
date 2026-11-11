@@ -63,3 +63,7 @@ spec:
     dns:
       server: bind.foreman-e2e.svc
       keySecretRef: tsig
+    bmc:
+      defaultProvider: ipmitool
+  storage:
+    size: 1Gi

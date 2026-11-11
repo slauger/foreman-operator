@@ -62,7 +62,7 @@ spec:
               curl -sfk -u "admin:${password}" "https://e2e-openvox.lnxlabs.de/api/smart_proxies?search=name%3Dpxe" \
                 | jq -r '.results[0].features[].name' | LC_ALL=C sort | tr '\n' ' '
             check:
-              ($stdout): "DHCP DNS Logs TFTP Templates "
+              ($stdout): "BMC DHCP DNS Logs TFTP Templates "
       catch:
         - describe:
             apiVersion: platform.theforeman.org/v1alpha1
@@ -110,6 +110,34 @@ spec:
               kubectl -n foreman-e2e exec deploy/pxe -c proxy -- dig +short @bind.foreman-e2e.svc host1.lab.test A
             check:
               (trim_space($stdout)): 10.99.0.50
+
+    - name: DHCP state on the volume survives a new pod
+      try:
+        - script:
+            timeout: 4m
+            content: |
+              set -e
+              mac="$(kubectl -n foreman-e2e exec pxe-client -- cat /sys/class/net/net1/address | tr -d '\r')"
+              kubectl -n foreman-e2e rollout restart deploy/pxe >/dev/null
+              kubectl -n foreman-e2e rollout status deploy/pxe --timeout=3m >/dev/null
+              kubectl -n foreman-e2e exec deploy/pxe -c proxy -- grep -c " ${mac} 10.99.0.50 " /var/lib/foreman-proxy/dhcp/dnsmasq.leases
+              kubectl -n foreman-e2e exec deploy/foreman-web -- curl -sf \
+                --cert /etc/foreman/tls/tls.crt --key /etc/foreman/tls/tls.key --cacert /etc/foreman/tls/ca.crt \
+                "https://pxe.foreman-e2e.svc:8443/dhcp/10.99.0.0/mac/${mac}" | jq -r .ip
+            check:
+              (trim_space($stdout)): "1\n10.99.0.50"
+      catch:
+        - podLogs:
+            selector: app.kubernetes.io/instance=pxe
+            tail: 50
+
+    - name: The BMC provider finds ipmitool
+      try:
+        - script:
+            content: |
+              kubectl -n foreman-e2e exec deploy/pxe -c proxy -- ipmitool -V
+            check:
+              (starts_with($stdout, 'ipmitool version')): true
 
     - name: Deleting the Smart Proxy removes it from Foreman
       try:

@@ -38,10 +38,10 @@ The capability set of the `dnsmasq` container is the minimal set found in the la
 
 | Volume | Mounted at | Content |
 |---|---|---|
-| `<name>-data` PVC, or `emptyDir` without `storage` | `/var/lib/tftpboot` | TFTP root with boot loaders and host boot files |
-| `emptyDir` | `/var/lib/foreman-proxy/dhcp` | `dhcphosts`, `dhcpopts.conf`, the lease file, and the reload trigger |
+| `<name>-data` PVC, subdirectory `tftpboot` | `/var/lib/tftpboot` | TFTP root with boot loaders and host boot files |
+| `<name>-data` PVC, subdirectory `dhcp` | `/var/lib/foreman-proxy/dhcp` | `dhcphosts`, `dhcpopts.conf`, the lease file, and the reload trigger |
 
-The DHCP directory is an `emptyDir`. Reservations and leases are lost when the pod is recreated, until Foreman writes the reservations again.
+Without `storage`, the same subdirectories live on an `emptyDir`, and reservations and leases are lost when the pod is recreated. The DHCP directory is kept outside the TFTP root, so reservations and leases are not served over TFTP.
 
 ## DHCP provider
 
@@ -73,7 +73,7 @@ Provisioning networks use direct L2, without DHCP relays. Multus gives the pod p
 
 DNS uses an external server through `dns_nsupdate` with a TSIG key from `dns.keySecretRef`. `nsupdate` comes from `bind-utils` in the Smart Proxy image. `dns_nsupdate_gss` is accepted by the API, but no keytab is mounted.
 
-BMC is open. Neither `ipmitool` nor `freeipmi` is available in UBI 9, and the Smart Proxy image is installed without `rubygem-rubyipmi`. Redfish or an additional package source are the options.
+BMC supports the `ipmitool`, `redfish`, `shell`, and `ssh` providers. `ipmitool` is not in UBI 9 and comes from CentOS Stream 9, see [Container Images](images.md#smart-proxy-image). `freeipmi` is not available. The BMC network must be reachable from the proxy pod, either over the pod network or a Multus attachment.
 
 ## Discovery
 

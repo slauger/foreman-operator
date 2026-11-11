@@ -99,7 +99,9 @@ func tftpServerName(p *foremanv1alpha1.SmartProxy) string {
 	return ""
 }
 
-func moduleSettings(enabled string, extra ...rubyEntry) string {
+// moduleSettings renders a module file. enabled is true, false, "http", or "https"; the Smart
+// Proxy treats the strings "true" and "false" as invalid and as enabled respectively.
+func moduleSettings(enabled any, extra ...rubyEntry) string {
 	m := rubyMap{}
 	m.set("enabled", enabled)
 	for _, e := range extra {
@@ -108,10 +110,11 @@ func moduleSettings(enabled string, extra ...rubyEntry) string {
 	return m.String()
 }
 
-// moduleEnabled returns the Smart Proxy "enabled" value: https, or both for features hosts reach.
-func moduleEnabled(on bool, value string) string {
+// moduleEnabled returns the Smart Proxy "enabled" value: https, or true (HTTP and HTTPS) for
+// features that hosts reach.
+func moduleEnabled(on bool, value any) any {
 	if !on {
-		return "false"
+		return false
 	}
 	return value
 }
@@ -157,10 +160,10 @@ func smartProxyConfig(p *foremanv1alpha1.SmartProxy, f *foremanv1alpha1.Foreman)
 	if feat.Templates != nil {
 		templateURL = feat.Templates.URL
 	}
-	add("templates.yml", moduleSettings(moduleEnabled(feat.Templates != nil, "true"),
+	add("templates.yml", moduleSettings(moduleEnabled(feat.Templates != nil, true),
 		rubyEntry{"template_url", templateURL},
 	))
-	add("httpboot.yml", moduleSettings(moduleEnabled(feat.HTTPBoot != nil, "true"),
+	add("httpboot.yml", moduleSettings(moduleEnabled(feat.HTTPBoot != nil, true),
 		rubyEntry{"root_dir", proxyTFTPRoot},
 	))
 	add("bmc.yml", moduleSettings(moduleEnabled(feat.BMC != nil, "https"),
@@ -168,7 +171,7 @@ func smartProxyConfig(p *foremanv1alpha1.SmartProxy, f *foremanv1alpha1.Foreman)
 	))
 	add("logs.yml", moduleSettings("https"))
 	for _, disabled := range []string{"puppet.yml", "puppetca.yml", "realm.yml", "facts.yml"} {
-		add(disabled, moduleSettings("false"))
+		add(disabled, moduleSettings(false))
 	}
 
 	if dhcp := feat.DHCP; dhcp != nil {
@@ -186,7 +189,7 @@ func smartProxyConfig(p *foremanv1alpha1.SmartProxy, f *foremanv1alpha1.Foreman)
 			rubyEntry{"subnets", subnets},
 		))
 		if dhcp.Provider == foremanv1alpha1.DHCPProviderDnsmasq {
-			add("dhcp_dnsmasq.yml", moduleSettings("true",
+			add("dhcp_dnsmasq.yml", moduleSettings(true,
 				rubyEntry{"config", dnsmasqConfigFile},
 				rubyEntry{"target_dir", proxyDHCPDir + "/"},
 				rubyEntry{"lease_file", dnsmasqLeaseFile},
@@ -196,7 +199,7 @@ func smartProxyConfig(p *foremanv1alpha1.SmartProxy, f *foremanv1alpha1.Foreman)
 			))
 		}
 	} else {
-		add("dhcp.yml", moduleSettings("false"))
+		add("dhcp.yml", moduleSettings(false))
 	}
 
 	if dns := feat.DNS; dns != nil {
@@ -209,9 +212,9 @@ func smartProxyConfig(p *foremanv1alpha1.SmartProxy, f *foremanv1alpha1.Foreman)
 		if dns.KeySecretRef != "" {
 			nsupdate = append(nsupdate, rubyEntry{"dns_key", proxyDNSKeyDir + "/key"})
 		}
-		add(provider+".yml", moduleSettings("true", nsupdate...))
+		add(provider+".yml", moduleSettings(true, nsupdate...))
 	} else {
-		add("dns.yml", moduleSettings("false"))
+		add("dns.yml", moduleSettings(false))
 	}
 
 	if needsDnsmasq(p) {

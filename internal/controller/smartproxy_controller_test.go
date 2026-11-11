@@ -151,8 +151,9 @@ func TestSmartProxyConfig(t *testing.T) {
 		"dns.yml":           {`:enabled: "https"`, `:use_provider: "dns_nsupdate"`},
 		"dns_nsupdate.yml":  {`:dns_server: "10.99.0.2"`, `:dns_key: "/etc/foreman-proxy/dns/key"`},
 		"tftp.yml":          {`:tftp_servername: "10.99.0.10"`},
-		"templates.yml":     {`:template_url: "http://10.99.0.10:8000"`},
-		"bmc.yml":           {`:enabled: "false"`},
+		"templates.yml":     {`:enabled: true`, `:template_url: "http://10.99.0.10:8000"`},
+		"bmc.yml":           {`:enabled: false`},
+		"facts.yml":         {`:enabled: false`},
 		"dnsmasq.conf":      {"dhcp-range=10.99.0.100,10.99.0.150,255.255.255.0,12h", "dhcp-option=3,10.99.0.1", "dhcp-option=6,10.99.0.2,10.99.0.3", "dhcp-hostsfile=/var/lib/foreman-proxy/dhcp/dhcphosts", "enable-tftp"},
 		"dhcp_infoblox.yml": nil,
 	}
@@ -188,7 +189,7 @@ func TestSmartProxyConfigWithoutDHCP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(files["dhcp.yml"], `:enabled: "false"`) || !strings.Contains(files["dns.yml"], `:enabled: "false"`) {
+	if !strings.Contains(files["dhcp.yml"], `:enabled: false`) || !strings.Contains(files["dns.yml"], `:enabled: false`) {
 		t.Error("dhcp and dns must be disabled")
 	}
 	if strings.Contains(files["settings.yml"], "http_port") {

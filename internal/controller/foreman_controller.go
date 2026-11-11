@@ -51,7 +51,7 @@ type ForemanReconciler struct {
 // +kubebuilder:rbac:groups="",resources=secrets;configmaps;services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete;deletecollection
 // +kubebuilder:rbac:groups=cert-manager.io,resources=certificates,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile drives a Foreman towards its spec. Database migrations run in a Job while all
@@ -132,8 +132,11 @@ func (r *ForemanReconciler) reconcile(ctx context.Context, f *foremanv1alpha1.Fo
 	hash := migrationHash(f, r.Images)
 	if f.Status.AppliedMigrationHash != hash {
 		done, err := r.migrate(ctx, f, hash)
-		if err != nil || !done {
-			return ctrl.Result{RequeueAfter: requeueShort}, err
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		if !done {
+			return ctrl.Result{RequeueAfter: requeueShort}, nil
 		}
 		log.Info("database migrated", "hash", hash)
 		f.Status.AppliedMigrationHash = hash

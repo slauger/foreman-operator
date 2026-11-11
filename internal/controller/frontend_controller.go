@@ -91,7 +91,15 @@ func (r *FrontendReconciler) reconcile(ctx context.Context, fe *foremanv1alpha1.
 		return ctrl.Result{}, fmt.Errorf("configuration: %w", err)
 	}
 
-	desired := frontendDeployment(fe, r.Images, r.Capabilities, checksumMap(data))
+	serverChecksum, err := secretChecksum(ctx, r.Client, fe.Namespace, frontendServerCertName(fe))
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	caChecksum, err := secretChecksum(ctx, r.Client, fe.Namespace, frontendClientCAName(fe))
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	desired := frontendDeployment(fe, r.Images, r.Capabilities, checksum(checksumMap(data), serverChecksum, caChecksum))
 	d := &appsv1.Deployment{}
 	d.Name = desired.Name
 	d.Namespace = desired.Namespace
@@ -121,7 +129,7 @@ func (r *FrontendReconciler) reconcile(ctx context.Context, fe *foremanv1alpha1.
 	}
 	fe.Status.Phase = string(foremanv1alpha1.ForemanPhaseRunning)
 	setCondition(&fe.Status.Conditions, fe.Generation, foremanv1alpha1.ConditionReady, metav1.ConditionTrue, reasonReconciled, "frontend is serving")
-	return ctrl.Result{}, nil
+	return ctrl.Result{RequeueAfter: resyncPeriod}, nil
 }
 
 func (r *FrontendReconciler) ensureCertificates(ctx context.Context, fe *foremanv1alpha1.Frontend, f *foremanv1alpha1.Foreman) error {

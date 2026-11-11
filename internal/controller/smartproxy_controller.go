@@ -152,7 +152,7 @@ func (r *SmartProxyReconciler) reconcile(ctx context.Context, p *foremanv1alpha1
 
 	p.Status.Phase = string(foremanv1alpha1.ForemanPhaseRunning)
 	setCondition(&p.Status.Conditions, p.Generation, foremanv1alpha1.ConditionReady, metav1.ConditionTrue, reasonReconciled, "proxy is registered in Foreman")
-	return ctrl.Result{}, nil
+	return ctrl.Result{RequeueAfter: resyncPeriod}, nil
 }
 
 func (r *SmartProxyReconciler) waiting(p *foremanv1alpha1.SmartProxy, message string) {
@@ -196,7 +196,11 @@ func (r *SmartProxyReconciler) ensurePVC(ctx context.Context, p *foremanv1alpha1
 }
 
 func (r *SmartProxyReconciler) ensureDeployment(ctx context.Context, p *foremanv1alpha1.SmartProxy, config map[string]string) (*appsv1.Deployment, error) {
-	desired, err := smartProxyDeployment(p, r.Images, r.Capabilities, config)
+	certChecksum, err := secretChecksum(ctx, r.Client, p.Namespace, smartProxyCertName(p))
+	if err != nil {
+		return nil, err
+	}
+	desired, err := smartProxyDeployment(p, r.Images, r.Capabilities, config, certChecksum)
 	if err != nil {
 		return nil, err
 	}

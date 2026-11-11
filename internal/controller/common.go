@@ -2,17 +2,43 @@
 package controller
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"sort"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	foremanv1alpha1 "github.com/slauger/foreman-operator/api/v1alpha1"
 )
+
+// resyncPeriod re-reads healthy resources, so renewed certificates reach the pods even
+// though their Secrets belong to cert-manager and are not watched.
+const resyncPeriod = 10 * time.Minute
+
+// secretChecksum digests a Secret's data. A missing Secret yields an empty string, so the
+// pods restart once when cert-manager issues the certificate and on every renewal.
+func secretChecksum(ctx context.Context, c client.Reader, namespace, name string) (string, error) {
+	secret := &corev1.Secret{}
+	if err := c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, secret); err != nil {
+		if apierrors.IsNotFound(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	data := make(map[string]string, len(secret.Data))
+	for k, v := range secret.Data {
+		data[k] = string(v)
+	}
+	return checksumMap(data), nil
+}
 
 // Capabilities describes optional APIs detected in the cluster at startup.
 type Capabilities struct {
@@ -20,7 +46,7 @@ type Capabilities struct {
 	CertManager bool
 	// GatewayAPI is true when TLSRoute and HTTPRoute are served.
 	GatewayAPI bool
-	// OpenShift is true when OpenShift Routes and SecurityContextConstraints exist.
+	// OpenShift is true when the OpenShift Route API exists.
 	OpenShift bool
 }
 

@@ -218,7 +218,7 @@ func TestSmartProxyDeployment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	d, err := smartProxyDeployment(p, DefaultImages("test"), Capabilities{}, files)
+	d, err := smartProxyDeployment(p, DefaultImages("test"), Capabilities{}, files, "")
 	if err != nil {
 		t.Fatal(err)
 	}

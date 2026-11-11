@@ -307,7 +307,7 @@ func moduleItems(config map[string]string) []corev1.KeyToPath {
 	return items
 }
 
-func smartProxyDeployment(p *foremanv1alpha1.SmartProxy, images Images, caps Capabilities, config map[string]string) (*appsv1.Deployment, error) {
+func smartProxyDeployment(p *foremanv1alpha1.SmartProxy, images Images, caps Capabilities, config map[string]string, certChecksum string) (*appsv1.Deployment, error) {
 	_, httpsPort, err := proxyEndpoint(p)
 	if err != nil {
 		return nil, err
@@ -383,7 +383,7 @@ func smartProxyDeployment(p *foremanv1alpha1.SmartProxy, images Images, caps Cap
 	// dnsmasq starts as root, so the pod as a whole cannot require non-root.
 	psc.RunAsNonRoot = nil
 
-	annotations := map[string]string{checksumAnnotation: checksumMap(config)}
+	annotations := map[string]string{checksumAnnotation: checksum(checksumMap(config), certChecksum)}
 	if len(p.Spec.Networks) > 0 {
 		nets, err := multusNetworks(p)
 		if err != nil {

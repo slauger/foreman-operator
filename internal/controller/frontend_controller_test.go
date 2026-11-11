@@ -200,3 +200,25 @@ func TestFrontendsForForeman(t *testing.T) {
 		t.Errorf("requests = %v", reqs)
 	}
 }
+
+func TestFrontendRestartsOnCertificateRenewal(t *testing.T) {
+	fe := testFrontend(foremanv1alpha1.FrontendExposureSpec{Type: foremanv1alpha1.FrontendExposureClusterIP})
+	server := &corev1.Secret{
+		Name: "prod-server", Namespace: testNamespace,
+		Data: map[string][]byte{"tls.crt": []byte("first")},
+	}
+	c := newTestClient(testForeman(), fe, server)
+	r := newFrontendReconciler(c, allCapabilities)
+	reconcileFrontend(t, r, fe)
+	before := mustGet(t, c, "prod", &appsv1.Deployment{}).Spec.Template.Annotations[checksumAnnotation]
+
+	server.Data["tls.crt"] = []byte("renewed")
+	if err := c.Update(context.Background(), server); err != nil {
+		t.Fatal(err)
+	}
+	reconcileFrontend(t, r, fe)
+	after := mustGet(t, c, "prod", &appsv1.Deployment{}).Spec.Template.Annotations[checksumAnnotation]
+	if before == after {
+		t.Error("a renewed certificate must change the pod template")
+	}
+}

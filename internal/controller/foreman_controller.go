@@ -110,6 +110,11 @@ func (r *ForemanReconciler) reconcile(ctx context.Context, f *foremanv1alpha1.Fo
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("configuration: %w", err)
 	}
+	certChecksum, err := secretChecksum(ctx, r.Client, f.Namespace, foremanClientCertName(f))
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("client certificate: %w", err)
+	}
+	configChecksum = checksum(configChecksum, certChecksum)
 	if err := r.ensureObject(ctx, f, foremanWebService(f)); err != nil {
 		return ctrl.Result{}, fmt.Errorf("service: %w", err)
 	}
@@ -148,7 +153,7 @@ func (r *ForemanReconciler) reconcile(ctx context.Context, f *foremanv1alpha1.Fo
 	f.Status.Phase = foremanv1alpha1.ForemanPhaseRunning
 	setCondition(&f.Status.Conditions, f.Generation, foremanv1alpha1.ConditionProgressing, metav1.ConditionFalse, reasonReconciled, "")
 	setCondition(&f.Status.Conditions, f.Generation, foremanv1alpha1.ConditionReady, metav1.ConditionTrue, reasonReconciled, "Foreman is running")
-	return ctrl.Result{}, nil
+	return ctrl.Result{RequeueAfter: resyncPeriod}, nil
 }
 
 // ensureSecrets creates the secrets Secret and fills in missing keys. The Secret has no owner

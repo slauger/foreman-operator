@@ -75,7 +75,7 @@ type SmartProxySpec struct {
 	// Features configures the enabled Smart Proxy features.
 	Features SmartProxyFeatures `json:"features"`
 
-	// Storage configures the volume for leases and boot files.
+	// Storage configures a persistent volume for the TFTP root. DHCP state is not persisted yet.
 	// +optional
 	Storage *SmartProxyStorage `json:"storage,omitempty"`
 
@@ -223,7 +223,7 @@ type RemoteExecutionSSHFeature struct {
 // AnsibleFeature enables the Ansible feature.
 type AnsibleFeature struct{}
 
-// SmartProxyStorage configures the volume for leases and boot files.
+// SmartProxyStorage configures the persistent volume for the TFTP root.
 type SmartProxyStorage struct {
 	// Size of the volume.
 	Size resource.Quantity `json:"size"`

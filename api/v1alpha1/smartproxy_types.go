@@ -75,7 +75,8 @@ type SmartProxySpec struct {
 	// Features configures the enabled Smart Proxy features.
 	Features SmartProxyFeatures `json:"features"`
 
-	// Storage configures a persistent volume for the TFTP root. DHCP state is not persisted yet.
+	// Storage configures a persistent volume for the TFTP root and the DHCP reservations and
+	// leases. Without it, both are lost when the pod is recreated.
 	// +optional
 	Storage *SmartProxyStorage `json:"storage,omitempty"`
 
@@ -205,7 +206,8 @@ type DNSFeature struct {
 // BMCFeature configures power management.
 type BMCFeature struct {
 	// DefaultProvider selects the BMC provider.
-	// +kubebuilder:validation:Enum=ipmitool;freeipmi;redfish;shell;ssh
+	// The image ships ipmitool; freeipmi is not available.
+	// +kubebuilder:validation:Enum=ipmitool;redfish;shell;ssh
 	// +optional
 	DefaultProvider string `json:"defaultProvider,omitempty"`
 }
@@ -223,7 +225,7 @@ type RemoteExecutionSSHFeature struct {
 // AnsibleFeature enables the Ansible feature.
 type AnsibleFeature struct{}
 
-// SmartProxyStorage configures the persistent volume for the TFTP root.
+// SmartProxyStorage configures the persistent volume for the TFTP root and the DHCP state.
 type SmartProxyStorage struct {
 	// Size of the volume.
 	Size resource.Quantity `json:"size"`

@@ -12,7 +12,7 @@
 | `networks[].attachment` | string | Yes | | NetworkAttachmentDefinition name, in the same namespace |
 | `networks[].address` | string | Yes | | Static address in CIDR notation |
 | `features` | object | Yes | | See below |
-| `storage.size` | Quantity | Yes, if `storage` is set | | Volume for the TFTP root. Without `storage`, an `emptyDir` is used |
+| `storage.size` | Quantity | Yes, if `storage` is set | | Volume for the TFTP root and the DHCP reservations and leases. Without `storage`, an `emptyDir` is used |
 | `storage.storageClass` | string | No | | Empty uses the cluster default |
 | `resources` | ResourceRequirements | No | requests 50m CPU and 256Mi, limit 512Mi | Compute resources of the proxy container |
 
@@ -33,7 +33,7 @@ Networks are attached as `net1` to `netN` in list order. Only the first network 
 | `dns.provider` | No | `dns_nsupdate` (default) or `dns_nsupdate_gss`. Only `dns_nsupdate` with a TSIG key is wired up |
 | `dns.server` | Yes | DNS server to update |
 | `dns.keySecretRef` | No | Secret with the TSIG key under `key` |
-| `bmc.defaultProvider` | No | `ipmitool`, `freeipmi`, `redfish`, `shell`, or `ssh`. Not usable yet, see [Provisioning](../concepts/provisioning.md#dns-and-bmc) |
+| `bmc.defaultProvider` | No | `ipmitool` (default), `redfish`, `shell`, or `ssh`. See [Provisioning](../concepts/provisioning.md#dns-and-bmc) |
 | `httpBoot` | No | Enables UEFI HTTP Boot from the TFTP root on port 8000 |
 | `remoteExecutionSSH.sshKeySecretRef` | Yes | Secret with `id_rsa` and `id_rsa.pub`. Accepted by the API, not implemented |
 | `ansible` | No | Enables Ansible. Accepted by the API, not implemented |

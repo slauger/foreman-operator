@@ -30,7 +30,7 @@ On a k3s cluster with cert-manager, CloudNativePG, Multus, and Envoy Gateway, th
 
 ## Scope
 
-The first stage is the base deployment: Foreman with Smart Proxies for PXE, DHCP, TFTP, and DNS. BMC is open because `ipmitool` is not available in UBI 9. [Katello](concepts/katello.md) is a later stage.
+The first stage is the base deployment: Foreman with Smart Proxies for PXE, DHCP, TFTP, DNS, and BMC. [Katello](concepts/katello.md) is a later stage.
 
 ## License
 

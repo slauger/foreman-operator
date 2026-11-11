@@ -62,10 +62,11 @@ spec:
                     description: BMC enables the BMC feature.
                     properties:
                       defaultProvider:
-                        description: DefaultProvider selects the BMC provider.
+                        description: |-
+                          DefaultProvider selects the BMC provider.
+                          The image ships ipmitool; freeipmi is not available.
                         enum:
                         - ipmitool
-                        - freeipmi
                         - redfish
                         - shell
                         - ssh
@@ -305,8 +306,9 @@ spec:
                     type: object
                 type: object
               storage:
-                description: Storage configures a persistent volume for the TFTP root.
-                  DHCP state is not persisted yet.
+                description: |-
+                  Storage configures a persistent volume for the TFTP root and the DHCP reservations and
+                  leases. Without it, both are lost when the pod is recreated.
                 properties:
                   size:
                     anyOf:

@@ -262,7 +262,25 @@ func TestSmartProxyDeployment(t *testing.T) {
 		vols[v.Name] = v
 	}
 	if vols["data"].PersistentVolumeClaim == nil || vols["data"].PersistentVolumeClaim.ClaimName != "pxe-data" {
-		t.Error("the TFTP root must use the PVC")
+		t.Error("the TFTP root and the DHCP state must use the PVC")
+	}
+	// Both containers must see the reservations and leases on the PVC, outside the TFTP root.
+	for _, ctr := range []corev1.Container{proxy, dnsmasq} {
+		var dhcp, tftp string
+		for _, m := range ctr.VolumeMounts {
+			switch m.MountPath {
+			case proxyDHCPDir:
+				dhcp = m.Name + "/" + m.SubPath
+			case proxyTFTPRoot:
+				tftp = m.Name + "/" + m.SubPath
+			}
+		}
+		if dhcp != "data/dhcp" || tftp != "data/tftpboot" {
+			t.Errorf("%s: dhcp mount = %q, tftp mount = %q", ctr.Name, dhcp, tftp)
+		}
+	}
+	if m := spec.InitContainers[0].VolumeMounts[0]; m.Name != "data" || m.SubPath != "tftpboot" {
+		t.Errorf("boot files mount = %+v", m)
 	}
 	if vols["dns-key"].Secret == nil || vols["dns-key"].Secret.SecretName != "tsig" {
 		t.Error("the TSIG key must be mounted")

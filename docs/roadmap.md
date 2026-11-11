@@ -24,5 +24,4 @@ The MVP is v0.1 and v0.2: `Foreman`, `Frontend`, and `SmartProxy` with DHCP, TFT
 ## Open decisions
 
 - Whether `foreman_discovery` moves into a later version
-- BMC: `ipmitool` and `freeipmi` are not in UBI 9, and the Smart Proxy image is installed without `rubygem-rubyipmi`. The BMC feature can be declared but is not usable.
 - Whether the operator should stay separate from `foreman-kubernetes`

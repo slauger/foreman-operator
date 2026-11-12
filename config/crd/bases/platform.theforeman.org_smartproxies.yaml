@@ -141,8 +141,9 @@ spec:
                       SSH.
                     properties:
                       sshKeySecretRef:
-                        description: SSHKeySecretRef names the Secret with "id_rsa"
-                          and "id_rsa.pub".
+                        description: |-
+                          SSHKeySecretRef names the Secret with "id_rsa" and "id_rsa.pub". The proxy logs in to
+                          hosts with this key, so the public key must be authorized on them.
                         minLength: 1
                         type: string
                     required:
@@ -387,6 +388,8 @@ spec:
                 the provisioning network
               rule: '!has(self.features.tftp) || (has(self.networks) && size(self.networks)
                 > 0)'
+            - message: ansible requires remoteExecutionSSH, whose SSH key it uses
+              rule: '!has(self.features.ansible) || has(self.features.remoteExecutionSSH)'
           status:
             description: SmartProxyStatus defines the observed state of SmartProxy.
             properties:

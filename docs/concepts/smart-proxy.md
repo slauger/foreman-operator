@@ -1,7 +1,7 @@
 # Smart Proxy
 
 !!! note "Status"
-    The `SmartProxy` controller and image are implemented for the `Provisioning` profile. Registration through OAuth is covered by the E2E test, but has not been run on a cluster yet; the OAuth signature itself was verified against a real Foreman. The `Execution` profile and off-cluster proxies are target design.
+    The `SmartProxy` controller and image are implemented for the `Provisioning` and `Execution` profiles. The E2E test registers both, and runs a Remote Execution and an Ansible job through the `Execution` proxy. Off-cluster proxies are target design.
 
 Each `SmartProxy` is one proxy registered in Foreman and always has one replica. Its state belongs to one pod: the Dynflow core keeps state in memory by default, and the TFTP root lives on a volume.
 
@@ -21,7 +21,7 @@ The operator registers each proxy through the Foreman API with OAuth 1.0a:
 - The `SmartProxy` controller connects over HTTPS to the frontend through the in-cluster Service `https://<foreman>-web.<namespace>.svc`. It sends the public host as SNI and `Host` and signs the request for the public URL, because Foreman verifies the signature against that URL. It verifies the frontend certificate against `ca.crt` of the server certificate Secret, or against the system roots when the Secret has no `ca.crt`.
 - It registers only after the proxy Deployment is available and the `Foreman` is `Ready`.
 - It looks up the proxy by name, the name of the `SmartProxy` resource. It creates the proxy if it does not exist, or adopts the existing one, and records the ID in `status.foremanID`.
-- When the URL, the generated configuration, or the certificate changes, it updates name and URL and refreshes the features, then records `status.registeredChecksum`. Foreman only reads the features on registration and refresh.
+- When the URL, the generated configuration, or the certificate changes, or Foreman finishes a migration for a new image or plugin set, it updates name and URL and refreshes the features, then records `status.registeredChecksum`. Foreman only reads the features on registration and refresh.
 - If the proxy was removed in Foreman by hand, it registers it again.
 - The finalizer `platform.theforeman.org/smart-proxy-registration` removes the proxy from Foreman when the resource is deleted. If the `Foreman` is gone or being deleted, the finalizer is removed without calling Foreman.
 
@@ -32,11 +32,20 @@ Registration errors set reason `RegistrationFailed` and are retried every 30 sec
 | Profile | Features | Network | Privileges |
 |---|---|---|---|
 | `Provisioning` | `tftp`, `dhcp`, `dns`, `bmc`, `templates`, `httpBoot` | Multus | Dedicated, see [Provisioning](provisioning.md) |
-| `Execution` | `remoteExecutionSSH`, `ansible` | Pod network with egress to hosts | None beyond the default. Not implemented: the features are accepted by the API but not configured |
+| `Execution` | `remoteExecutionSSH`, `ansible` | Pod network with egress to hosts | Restricted, non-root |
 
 A third profile for Katello content mirrors will be designed with [Katello](katello.md).
 
-`Execution` needs persistent SSH keys in a Secret. Its URL must resolve from managed hosts when callbacks are used.
+## Execution profile
+
+`remoteExecutionSSH` enables Dynflow and Remote Execution over SSH on the proxy, `ansible` adds Ansible on top. The Foreman side needs the matching [plugins](plugins.md), `foreman_remote_execution` and `foreman_ansible`.
+
+- The SSH key comes from the Secret in `remoteExecutionSSH.sshKeySecretRef`, with `id_rsa` and `id_rsa.pub`. Any key type works despite the names. Authorize the public key on the hosts.
+- The key is mounted at `/var/lib/foreman-proxy/ssh/id_rsa_foreman_proxy` with mode `0440`. The files belong to root, so `ssh` accepts the group read bit that lets the proxy user read them through `fsGroup`.
+- The proxy uses the OpenSSH client in `ssh` mode. Pull mode over MQTT is not configured.
+- Dynflow on the proxy keeps its state in memory, so jobs that run while the pod is replaced fail.
+- Working directories on the proxy are on the `tmp` volume. On the hosts, scripts run in `/var/tmp`.
+- Its URL must resolve from managed hosts when callbacks are used.
 
 ## One pod per proxy
 

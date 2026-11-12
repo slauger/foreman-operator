@@ -9,7 +9,7 @@ The upstream Foreman images are based on CentOS Stream 10, declare named users, 
 |---|---|---|---|
 | `ghcr.io/slauger/foreman-operator` | UBI 9 minimal | Operator binary | amd64, arm64 |
 | `ghcr.io/slauger/foreman-operator-foreman` | UBI 9 | Foreman 5.0 RPMs and the [plugin catalog](plugins.md#catalog) | amd64 |
-| `ghcr.io/slauger/foreman-operator-smart-proxy` | UBI 9 | `foreman-proxy`, `smart_proxy_dhcp_dnsmasq`, dnsmasq, `bind-utils`, and the dnsmasq supervisor | amd64 |
+| `ghcr.io/slauger/foreman-operator-smart-proxy` | UBI 9 | `foreman-proxy`, `smart_proxy_dhcp_dnsmasq`, dnsmasq, `bind-utils`, the dnsmasq supervisor, `ipmitool`, and the Dynflow, Remote Execution SSH, and Ansible plugins with the OpenSSH client and `ansible-core` | amd64 |
 | `ghcr.io/slauger/foreman-operator-boot-files` | UBI 9 minimal, files from CentOS Stream 9 | syslinux, GRUB 2, and shim boot loaders | amd64 |
 | `ghcr.io/slauger/foreman-operator-frontend` | UBI 9 | `httpd`, `mod_ssl`; runs as the container `httpd` in the Foreman web pods, the configuration is mounted by the operator | amd64, arm64 |
 
@@ -31,7 +31,7 @@ The operator uses the tag of its `--default-image-tag` flag for every component 
 
 `foreman-proxy` also hard-requires `rubygem-ruby-libvirt`, which needs `libvirt-libs` and is not in the UBI repositories. The image therefore installs all other dependencies from the repositories and then installs `foreman-proxy` and `rubygem-smart_proxy_dhcp_dnsmasq` with `rpm --nodeps`. The build fails if any other dependency is unsatisfied. The libvirt providers cannot be used.
 
-The Foreman plugins repository is unsigned upstream (`gpgcheck=0`), so only the digests of the dnsmasq plugin RPM are verified. `bind-utils` provides `nsupdate` for the DNS feature.
+The Foreman plugins repository is unsigned upstream (`gpgcheck=0`), so only the digests of the plugin RPMs are verified. `bind-utils` provides `nsupdate` for the DNS feature.
 
 The same image runs both containers of the proxy pod: the Smart Proxy as an unprivileged user, and dnsmasq through `dnsmasq-supervisor`, see [Provisioning](provisioning.md#pod-layout).
 

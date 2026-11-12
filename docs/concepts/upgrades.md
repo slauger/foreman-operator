@@ -50,7 +50,7 @@ Losing any of these makes a restore partly or fully unusable:
 
 - the Secret `<name>-secrets`, which holds the Foreman `ENCRYPTION_KEY`, `SECRET_KEY_BASE`, and the OAuth consumer
 - the internal CA key
-- Smart Proxy SSH keys, once the `Execution` profile exists
+- The Remote Execution SSH key Secrets of `Execution` proxies
 - the TFTP root on the proxy volume
 
 A `Backup` kind is deferred until manual procedures have been tested.

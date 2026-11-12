@@ -16,7 +16,7 @@ A Kubernetes Operator that maps [Foreman](https://theforeman.org/) and Smart Pro
 | Kind | State | Purpose |
 |---|---|---|
 | **Foreman** | Implemented | FQDN, image, database and Valkey references; web with the frontend sidecar for mutual TLS and exposure, Dynflow, and migrations |
-| **SmartProxy** | Implemented for `Provisioning` | One registered proxy with networks and features |
+| **SmartProxy** | Implemented for `Provisioning` and `Execution` | One registered proxy with networks and features |
 | **Release** | Planned | Compatible image sets, ordered upgrades |
 | **Candlepin** | Planned | Subscription service for Katello |
 | **Pulp** | Planned | Content service for Katello |

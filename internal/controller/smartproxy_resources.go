@@ -26,6 +26,8 @@ const (
 	proxyConfigDir   = "/etc/foreman-proxy"
 	proxyTLSDir      = "/etc/foreman-proxy/tls"
 	proxyDNSKeyDir   = "/etc/foreman-proxy/dns"
+	proxySSHDir      = "/var/lib/foreman-proxy/ssh"
+	proxySSHKeyFile  = "id_rsa_foreman_proxy"
 	proxyDHCPDir     = "/var/lib/foreman-proxy/dhcp"
 	proxyTFTPRoot    = "/var/lib/tftpboot"
 	dnsmasqConfigDir = "/etc/dnsmasq-foreman"
@@ -174,6 +176,21 @@ func smartProxyConfig(p *foremanv1alpha1.SmartProxy, f *foremanv1alpha1.Foreman)
 		rubyEntry{"bmc_default_provider", bmcProvider(feat.BMC)},
 	))
 	add("logs.yml", moduleSettings("https"))
+
+	// Remote Execution runs its jobs in the Dynflow of the proxy. Its working directories
+	// on the proxy side live on the tmp volume, which must exist before the modules start.
+	rex := feat.RemoteExecutionSSH != nil
+	add("dynflow.yml", moduleSettings(moduleEnabled(rex, "https")))
+	add("remote_execution_ssh.yml", moduleSettings(moduleEnabled(rex, "https"),
+		rubyEntry{"ssh_identity_key_file", proxySSHDir + "/" + proxySSHKeyFile},
+		rubyEntry{"local_working_dir", "/tmp"},
+		rubyEntry{"remote_working_dir", "/var/tmp"},
+		rubyEntry{"socket_working_dir", "/tmp"},
+		rubyEntry{"mode", "ssh"},
+	))
+	add("ansible.yml", moduleSettings(moduleEnabled(feat.Ansible != nil, "https"),
+		rubyEntry{"working_dir", "/tmp"},
+	))
 	for _, disabled := range []string{"puppet.yml", "puppetca.yml", "realm.yml", "facts.yml"} {
 		add(disabled, moduleSettings(false))
 	}
@@ -355,6 +372,19 @@ func smartProxyDeployment(p *foremanv1alpha1.SmartProxy, images Images, caps Cap
 		}})
 		proxyMounts = append(proxyMounts, corev1.VolumeMount{Name: "dns-key", MountPath: proxyDNSKeyDir, ReadOnly: true})
 	}
+	if rex := p.Spec.Features.RemoteExecutionSSH; rex != nil {
+		// ssh rejects a private key that others can read only if the user owns it. The files
+		// of a Secret volume belong to root, so the group read bit for fsGroup is accepted.
+		volumes = append(volumes, corev1.Volume{Name: "ssh-key", Secret: &corev1.SecretVolumeSource{
+			SecretName:  rex.SSHKeySecretRef,
+			DefaultMode: new(int32(0o440)),
+			Items: []corev1.KeyToPath{
+				{Key: "id_rsa", Path: proxySSHKeyFile},
+				{Key: "id_rsa.pub", Path: proxySSHKeyFile + ".pub"},
+			},
+		}})
+		proxyMounts = append(proxyMounts, corev1.VolumeMount{Name: "ssh-key", MountPath: proxySSHDir, ReadOnly: true})
+	}
 	if needsDnsmasq(p) {
 		proxyMounts = append(proxyMounts, corev1.VolumeMount{Name: "config", MountPath: dnsmasqConfigFile, SubPath: "dnsmasq.conf", ReadOnly: true})
 	}
@@ -397,8 +427,10 @@ func smartProxyDeployment(p *foremanv1alpha1.SmartProxy, images Images, caps Cap
 	}
 
 	psc := podSecurityContext(caps.OpenShift)
-	// dnsmasq starts as root, so the pod as a whole cannot require non-root.
-	psc.RunAsNonRoot = nil
+	if needsDnsmasq(p) {
+		// dnsmasq starts as root, so the pod as a whole cannot require non-root.
+		psc.RunAsNonRoot = nil
+	}
 
 	annotations := map[string]string{checksumAnnotation: checksum(checksumMap(config), certChecksum)}
 	if len(p.Spec.Networks) > 0 {

@@ -1,7 +1,7 @@
 # Plugins
 
 !!! note "Status"
-    Implemented for the Foreman side. The Foreman image contains a fixed plugin catalog, and `spec.plugins` selects which of them are loaded. The matching Smart Proxy plugins, such as Remote Execution over SSH, are not in the Smart Proxy image yet.
+    Implemented. The Foreman image contains a fixed plugin catalog, and `spec.plugins` selects which of them are loaded. The Smart Proxy image contains the Dynflow, Remote Execution SSH, and Ansible plugins for the `Execution` profile, see [Smart Proxy](smart-proxy.md#execution-profile).
 
 ## Model
 

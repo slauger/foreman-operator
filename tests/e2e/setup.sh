@@ -43,6 +43,15 @@ if ! retry kubectl -n "${E2E_NAMESPACE}" get secret tsig >/dev/null 2>&1; then
     rm -f "${TMPDIR:-/tmp}/tsig-key"
 fi
 
+# The Remote Execution key of the Execution proxy, authorized on the rex-target pod.
+if ! retry kubectl -n "${E2E_NAMESPACE}" get secret rex-ssh >/dev/null 2>&1; then
+    keydir="$(mktemp -d)"
+    ssh-keygen -q -t ed25519 -N '' -C foreman-proxy -f "${keydir}/id_rsa"
+    retry kubectl -n "${E2E_NAMESPACE}" create secret generic rex-ssh \
+        --from-file=id_rsa="${keydir}/id_rsa" --from-file=id_rsa.pub="${keydir}/id_rsa.pub"
+    rm -rf "${keydir}"
+fi
+
 retry helm upgrade --install foreman-db "${ROOT_DIR}/charts/foreman-db-cnpg" \
     --namespace "${E2E_NAMESPACE}" --set storage.size=5Gi
 retry kubectl -n "${E2E_NAMESPACE}" apply -f "${SCRIPT_DIR}/setup/prerequisites.yaml"

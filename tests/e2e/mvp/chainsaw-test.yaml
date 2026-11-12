@@ -173,6 +173,61 @@ spec:
             check:
               (trim_space($stdout)): "0"
 
+    - name: The Execution proxy is registered with its features
+      try:
+        - assert:
+            resource:
+              apiVersion: platform.theforeman.org/v1alpha1
+              kind: SmartProxy
+              metadata:
+                name: rex
+              status:
+                phase: Running
+                (foremanID > `0`): true
+        - script:
+            content: |
+              password="$(kubectl -n foreman-e2e get secret foreman-secrets -o jsonpath='{.data.admin-password}' | base64 -d)"
+              curl -sfk -u "admin:${password}" "https://e2e-openvox.lnxlabs.de/api/smart_proxies?search=name%3Drex" \
+                | jq -r '.results[0].features[].name' | LC_ALL=C sort | tr '\n' ' '
+            check:
+              ($stdout): "Ansible Dynflow Logs Script "
+      catch:
+        - describe:
+            apiVersion: platform.theforeman.org/v1alpha1
+            kind: SmartProxy
+            name: rex
+        - podLogs:
+            selector: app.kubernetes.io/instance=rex
+            tail: 50
+
+    - name: A Remote Execution job runs on the target over SSH
+      try:
+        - script:
+            timeout: 6m
+            content: |
+              ./run-job.sh "Run Command - Script Default" "cat /etc/alpine-release"
+            check:
+              (starts_with($stdout, 'succeeded')): true
+              (contains($stdout, '3.22')): true
+      catch:
+        - podLogs:
+            selector: app.kubernetes.io/instance=rex
+            tail: 80
+
+    - name: An Ansible job runs on the target
+      try:
+        - script:
+            timeout: 6m
+            content: |
+              ./run-job.sh "Run Command - Ansible Default" "cat /etc/alpine-release"
+            check:
+              (starts_with($stdout, 'succeeded')): true
+              (contains($stdout, '3.22')): true
+      catch:
+        - podLogs:
+            selector: app.kubernetes.io/instance=rex
+            tail: 80
+
     - name: Deleting the Smart Proxy removes it from Foreman
       try:
         - delete:

@@ -215,6 +215,15 @@ func TestSmartProxyValidation(t *testing.T) {
 			},
 		},
 		{
+			name: "ansible without remote execution",
+			mutate: func(p *SmartProxy) {
+				p.Spec.Profile = SmartProxyProfileExecution
+				p.Spec.Networks = nil
+				p.Spec.Features = SmartProxyFeatures{Ansible: &AnsibleFeature{}}
+			},
+			wantErr: "ansible requires remoteExecutionSSH",
+		},
+		{
 			name: "execution with dhcp",
 			mutate: func(p *SmartProxy) {
 				p.Spec.Profile = SmartProxyProfileExecution

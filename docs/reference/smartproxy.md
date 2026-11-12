@@ -5,7 +5,7 @@
 | Field | Type | Required | Default | Description |
 |---|---|---|---|---|
 | `foremanRef` | string | Yes | | Foreman this proxy registers with, in the same namespace |
-| `profile` | string | Yes | | `Provisioning` or `Execution`. Only `Provisioning` is implemented |
+| `profile` | string | Yes | | `Provisioning` or `Execution` |
 | `url` | string | Yes | | Address registered in Foreman, must start with `https://`. Its host is the certificate CN, its port the HTTPS port of the proxy |
 | `image` | [image](index.md#image) | No | | Smart Proxy image, also used for the dnsmasq container |
 | `tls` | [tls](index.md#tls) | Yes | | Source of the server and client certificate |
@@ -36,13 +36,14 @@ The network is attached as `net1`. The dnsmasq container assigns its static addr
 | `dns.keySecretRef` | No | Secret with the TSIG key under `key` |
 | `bmc.defaultProvider` | No | `ipmitool` (default), `redfish`, `shell`, or `ssh`. See [Provisioning](../concepts/provisioning.md#dns-and-bmc) |
 | `httpBoot` | No | Enables UEFI HTTP Boot from the TFTP root on port 8000 |
-| `remoteExecutionSSH.sshKeySecretRef` | Yes | Secret with `id_rsa` and `id_rsa.pub`. Accepted by the API, not implemented |
-| `ansible` | No | Enables Ansible. Accepted by the API, not implemented |
+| `remoteExecutionSSH.sshKeySecretRef` | Yes | Secret with `id_rsa` and `id_rsa.pub`. Enables Dynflow and Remote Execution over SSH, see [Smart Proxy](../concepts/smart-proxy.md#execution-profile) |
+| `ansible` | No | Enables Ansible. Requires `remoteExecutionSSH` |
 
 ## Validation
 
 - `Execution` does not support `dhcp`, `tftp`, or `dns`.
 - `Provisioning` does not support `remoteExecutionSSH` or `ansible`.
+- `ansible` requires `remoteExecutionSSH`.
 - At most one network is supported.
 - The `dnsmasq` provider and `tftp` require a network.
 - The `dnsmasq` provider supports exactly one subnet per `SmartProxy`.

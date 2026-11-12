@@ -178,7 +178,7 @@ func smartProxyConfig(p *foremanv1alpha1.SmartProxy, f *foremanv1alpha1.Foreman)
 	add("logs.yml", moduleSettings("https"))
 
 	// Remote Execution runs its jobs in the Dynflow of the proxy. Its working directories
-	// on the proxy side live on the tmp volume, and Ansible reuses its SSH key.
+	// on the proxy side live on the tmp volume, which must exist before the modules start.
 	rex := feat.RemoteExecutionSSH != nil
 	add("dynflow.yml", moduleSettings(moduleEnabled(rex, "https")))
 	add("remote_execution_ssh.yml", moduleSettings(moduleEnabled(rex, "https"),
@@ -189,7 +189,7 @@ func smartProxyConfig(p *foremanv1alpha1.SmartProxy, f *foremanv1alpha1.Foreman)
 		rubyEntry{"mode", "ssh"},
 	))
 	add("ansible.yml", moduleSettings(moduleEnabled(feat.Ansible != nil, "https"),
-		rubyEntry{"working_dir", "/tmp/foreman-ansible"},
+		rubyEntry{"working_dir", "/tmp"},
 	))
 	for _, disabled := range []string{"puppet.yml", "puppetca.yml", "realm.yml", "facts.yml"} {
 		add(disabled, moduleSettings(false))

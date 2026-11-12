@@ -366,7 +366,7 @@ func TestSmartProxyExecutionProfile(t *testing.T) {
 	expect := map[string][]string{
 		"dynflow.yml":              {`:enabled: "https"`},
 		"remote_execution_ssh.yml": {`:enabled: "https"`, `:ssh_identity_key_file: "/var/lib/foreman-proxy/ssh/id_rsa_foreman_proxy"`, `:mode: "ssh"`, `:local_working_dir: "/tmp"`},
-		"ansible.yml":              {`:enabled: "https"`, `:working_dir: "/tmp/foreman-ansible"`},
+		"ansible.yml":              {`:enabled: "https"`, `:working_dir: "/tmp"`},
 		"dhcp.yml":                 {`:enabled: false`},
 		"tftp.yml":                 {`:enabled: false`},
 	}
@@ -588,5 +588,16 @@ func TestSmartProxyRefreshesOnConfigChange(t *testing.T) {
 	reconcileSmartProxy(t, r)
 	if len(api.refreshed) != 1 {
 		t.Errorf("refreshed = %v, want one refresh", api.refreshed)
+	}
+
+	// A new plugin set adds features to Foreman, so the next migration refreshes them too.
+	f = mustGet(t, c, "prod", &foremanv1alpha1.Foreman{})
+	f.Status.AppliedMigrationHash = "after-plugin-change"
+	if err := c.Status().Update(context.Background(), f); err != nil {
+		t.Fatal(err)
+	}
+	reconcileSmartProxy(t, r)
+	if len(api.refreshed) != 2 {
+		t.Errorf("refreshed = %v, want a refresh after the migration", api.refreshed)
 	}
 }

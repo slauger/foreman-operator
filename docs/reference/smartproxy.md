@@ -56,7 +56,7 @@ The network is attached as `net1`. The dnsmasq container assigns its static addr
 | `observedGeneration` | integer | Last processed generation |
 | `phase` | string | `Pending`, `Progressing`, `Running`, or `Failed` |
 | `foremanID` | integer | Identifier assigned by Foreman |
-| `registeredChecksum` | string | URL, configuration, and certificate whose features were last refreshed in Foreman |
+| `registeredChecksum` | string | URL, configuration, certificate, and Foreman migration whose features were last refreshed in Foreman |
 | `conditions` | []Condition | See [Conditions](index.md#conditions) |
 
 ## Created objects

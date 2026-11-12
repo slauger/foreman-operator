@@ -21,7 +21,7 @@ The operator registers each proxy through the Foreman API with OAuth 1.0a:
 - The `SmartProxy` controller connects over HTTPS to the frontend through the in-cluster Service `https://<foreman>-web.<namespace>.svc`. It sends the public host as SNI and `Host` and signs the request for the public URL, because Foreman verifies the signature against that URL. It verifies the frontend certificate against `ca.crt` of the server certificate Secret, or against the system roots when the Secret has no `ca.crt`.
 - It registers only after the proxy Deployment is available and the `Foreman` is `Ready`.
 - It looks up the proxy by name, the name of the `SmartProxy` resource. It creates the proxy if it does not exist, or adopts the existing one, and records the ID in `status.foremanID`.
-- When the URL, the generated configuration, or the certificate changes, it updates name and URL and refreshes the features, then records `status.registeredChecksum`. Foreman only reads the features on registration and refresh.
+- When the URL, the generated configuration, or the certificate changes, or Foreman finishes a migration for a new image or plugin set, it updates name and URL and refreshes the features, then records `status.registeredChecksum`. Foreman only reads the features on registration and refresh.
 - If the proxy was removed in Foreman by hand, it registers it again.
 - The finalizer `platform.theforeman.org/smart-proxy-registration` removes the proxy from Foreman when the resource is deleted. If the `Foreman` is gone or being deleted, the finalizer is removed without calling Foreman.
 

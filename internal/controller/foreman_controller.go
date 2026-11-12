@@ -290,7 +290,7 @@ func (r *ForemanReconciler) ensureWorkloads(ctx context.Context, f *foremanv1alp
 		if component != componentWeb && component != componentDynflowOrchestr {
 			continue
 		}
-		if !deploymentAvailable(d.Status.AvailableReplicas, min(*desired.Spec.Replicas, 1), d.Status.ObservedGeneration, d.Generation) {
+		if !deploymentAvailable(d, min(*desired.Spec.Replicas, 1)) {
 			ready = false
 		}
 	}

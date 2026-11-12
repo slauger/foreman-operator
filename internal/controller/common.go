@@ -209,9 +209,12 @@ func isPaused(obj metav1.Object) bool {
 	return obj.GetAnnotations()[foremanv1alpha1.PausedAnnotation] == "true"
 }
 
-// deploymentAvailable reports whether a Deployment has rolled out its current spec.
-func deploymentAvailable(ready, desired int32, observed, generation int64) bool {
-	return observed >= generation && ready >= desired
+// deploymentAvailable reports whether a Deployment has rolled out its current spec: at least
+// desired pods are available and no pod of an older template is left. Old pods alone would
+// still serve the previous version.
+func deploymentAvailable(d *appsv1.Deployment, desired int32) bool {
+	s := d.Status
+	return s.ObservedGeneration >= d.Generation && s.UpdatedReplicas == s.Replicas && s.AvailableReplicas >= desired
 }
 
 func errMissingCapability(what string) error {

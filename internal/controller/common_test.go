@@ -27,6 +27,27 @@ func TestSetPodTemplateKeepsRestart(t *testing.T) {
 	}
 }
 
+func TestDeploymentAvailable(t *testing.T) {
+	tests := []struct {
+		name   string
+		status appsv1.DeploymentStatus
+		want   bool
+	}{
+		{"rolled out", appsv1.DeploymentStatus{ObservedGeneration: 2, Replicas: 1, UpdatedReplicas: 1, AvailableReplicas: 1}, true},
+		{"not observed yet", appsv1.DeploymentStatus{ObservedGeneration: 1, Replicas: 1, UpdatedReplicas: 1, AvailableReplicas: 1}, false},
+		// A rolling update keeps the old pod available until the new one is ready.
+		{"old pod still serving", appsv1.DeploymentStatus{ObservedGeneration: 2, Replicas: 2, UpdatedReplicas: 1, AvailableReplicas: 1}, false},
+		{"new pod not ready", appsv1.DeploymentStatus{ObservedGeneration: 2, Replicas: 1, UpdatedReplicas: 1}, false},
+	}
+	for _, tt := range tests {
+		d := &appsv1.Deployment{Status: tt.status}
+		d.Generation = 2
+		if got := deploymentAvailable(d, 1); got != tt.want {
+			t.Errorf("%s: deploymentAvailable = %v, want %v", tt.name, got, tt.want)
+		}
+	}
+}
+
 func TestEveryContainerHasReadOnlyRootFilesystem(t *testing.T) {
 	f := testForeman()
 	f.Spec.Dynflow.HostsQueueReplicas = new(int32(1))

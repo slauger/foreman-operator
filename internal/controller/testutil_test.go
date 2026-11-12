@@ -90,6 +90,8 @@ func markDeploymentAvailable(t *testing.T, c client.Client, name string) {
 	t.Helper()
 	d := mustGet(t, c, name, &appsv1.Deployment{})
 	d.Status.ObservedGeneration = d.Generation
+	d.Status.Replicas = *d.Spec.Replicas
+	d.Status.UpdatedReplicas = *d.Spec.Replicas
 	d.Status.AvailableReplicas = *d.Spec.Replicas
 	d.Status.ReadyReplicas = *d.Spec.Replicas
 	if err := c.Status().Update(context.Background(), d); err != nil {

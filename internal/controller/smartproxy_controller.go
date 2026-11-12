@@ -134,7 +134,7 @@ func (r *SmartProxyReconciler) reconcile(ctx context.Context, p *foremanv1alpha1
 		return ctrl.Result{}, fmt.Errorf("service: %w", err)
 	}
 
-	if !deploymentAvailable(d.Status.AvailableReplicas, 1, d.Status.ObservedGeneration, d.Generation) {
+	if !deploymentAvailable(d, 1) {
 		p.Status.Phase = string(foremanv1alpha1.ForemanPhaseProgressing)
 		setCondition(&p.Status.Conditions, p.Generation, foremanv1alpha1.ConditionReady, metav1.ConditionFalse, reasonRollingOut, "proxy is rolling out")
 		return ctrl.Result{RequeueAfter: requeueShort}, nil

@@ -15,8 +15,8 @@ nameOverride: ""
 fullnameOverride: ""
 
 operator:
-  # @param operator.defaultImageTag Tag of the Foreman, frontend, and Smart Proxy images used when a resource names none
-  defaultImageTag: develop
+  # @param operator.defaultImageTag Tag of the Foreman, frontend, Smart Proxy, and boot-files images used when a resource names none (empty uses the chart appVersion)
+  defaultImageTag: ""
   # @param operator.watchNamespace Restrict the operator to one namespace (empty watches all namespaces)
   watchNamespace: ""
   # @param operator.leaderElection Enable leader election (required for more than one replica)

@@ -6,7 +6,23 @@ Helm chart for foreman-operator, an experimental Kubernetes operator for Foreman
 
 ## Install
 
-The chart is not published to a registry yet. Install it from a checkout of the repository. Helm installs the CRDs in `crds/` only on the first install and never upgrades them, so apply them explicitly before every install or upgrade:
+Releases publish the chart to `oci://ghcr.io/slauger/charts/foreman-operator`. Helm installs the CRDs in `crds/` only on the first install and never upgrades them, so apply them explicitly before every install or upgrade:
+
+```bash
+VERSION=0.1.0
+
+helm pull oci://ghcr.io/slauger/charts/foreman-operator --version "${VERSION}" --untar
+kubectl apply --server-side -f foreman-operator/crds/
+
+helm upgrade --install foreman-operator oci://ghcr.io/slauger/charts/foreman-operator \
+  --version "${VERSION}" \
+  --namespace foreman-operator \
+  --create-namespace
+```
+
+`image.tag` and `operator.defaultImageTag` default to the chart `appVersion`, which the release sets to its version.
+
+In a checkout, the chart has the `appVersion` `0.0.0`, for which no image exists. To test `develop` or a feature branch, set both the operator image tag and the default tag of the component images:
 
 ```bash
 kubectl apply --server-side -f charts/foreman-operator/crds/
@@ -14,18 +30,8 @@ kubectl apply --server-side -f charts/foreman-operator/crds/
 helm upgrade --install foreman-operator charts/foreman-operator \
   --namespace foreman-operator \
   --create-namespace \
-  --set image.tag=develop
-```
-
-`image.tag` defaults to the chart `appVersion` `0.0.0`. No image with that tag is published yet, so set it to `develop` or a branch tag.
-
-To test a feature branch, set both the operator image tag and the default tag of the component images:
-
-```bash
-helm upgrade --install foreman-operator charts/foreman-operator \
-  --namespace foreman-operator \
-  --set image.tag=feat-example \
-  --set operator.defaultImageTag=feat-example
+  --set image.tag=develop \
+  --set operator.defaultImageTag=develop
 ```
 
 The `Frontend` kind was removed; its settings are now `spec.frontend` of the `Foreman`. `kubectl apply` does not delete the old CRD `frontends.platform.theforeman.org`. Delete existing `Frontend` resources and that CRD by hand. Their child objects can have the same names as the new frontend objects of the `Foreman`, so delete them before the upgrade. This upgrade path is not tested.
@@ -46,7 +52,7 @@ The RBAC rules are rendered from `files/rules.yaml`, which `make manifests` gene
 | `imagePullSecrets` | list | `[]` | Image pull secrets for private registries |
 | `nameOverride` | string | `""` | Override the chart name |
 | `fullnameOverride` | string | `""` | Override the fully qualified app name |
-| `operator.defaultImageTag` | string | `develop` | Tag of the Foreman, frontend, Smart Proxy, and boot-files images when a resource names neither tag nor digest |
+| `operator.defaultImageTag` | string | `""` | Tag of the Foreman, frontend, Smart Proxy, and boot-files images when a resource names neither tag nor digest. Empty uses the chart `appVersion` |
 | `operator.watchNamespace` | string | `""` | Restrict the operator to one namespace. Empty watches all namespaces |
 | `operator.leaderElection` | bool | `true` | Enable leader election. Required for more than one replica |
 | `operator.logLevel` | string | `info` | Log level: `debug`, `info`, or `error` |

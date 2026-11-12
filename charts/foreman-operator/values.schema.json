@@ -18,7 +18,7 @@
     "operator": {
       "type": "object",
       "properties": {
-        "defaultImageTag": {"type": "string", "minLength": 1},
+        "defaultImageTag": {"type": "string"},
         "watchNamespace": {"type": "string"},
         "leaderElection": {"type": "boolean"},
         "logLevel": {"type": "string", "enum": ["debug", "info", "error"]},

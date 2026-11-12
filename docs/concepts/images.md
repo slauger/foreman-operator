@@ -22,8 +22,9 @@ Foreman and Smart Proxy RPMs exist for x86_64 only.
 | Push to `develop` | `develop` |
 | Push to `feat/**` or `fix/**` | Branch name with slashes replaced by dashes, for example `feat-smart-proxy` |
 | Manual run | The given tag |
+| [Release](../development/releasing.md) | The version, for example `0.1.0`, and `latest` |
 
-The operator uses the tag of its `--default-image-tag` flag for every component image unless a resource sets `image.tag` or `image.digest`. Images are not signed while the repository is private, see [Supply Chain Security](../guides/supply-chain-security.md).
+The operator uses the tag of its `--default-image-tag` flag for every component image unless a resource sets `image.tag` or `image.digest`. The chart sets the flag to its `appVersion`, so a released chart runs the images of the same release. Images are not signed while the repository is private, see [Supply Chain Security](../guides/supply-chain-security.md).
 
 ## Smart Proxy image
 
@@ -37,7 +38,7 @@ The same image runs both containers of the proxy pod: the Smart Proxy as an unpr
 
 ## Boot files image
 
-The boot loaders come from CentOS Stream 9 packages (`syslinux-tftpboot`, `grub2-efi-x64`, `shim-x64`), because they are not in UBI 9. The image only contains static files: syslinux in the root, and GRUB 2 and shim under `grub2/`. Its default command copies them into `/var/lib/tftpboot`. License: `GPL-2.0-or-later AND GPL-3.0-or-later AND BSD-2-Clause-Patent`.
+The boot loaders come from CentOS Stream 9 packages (`syslinux-tftpboot`, `grub2-efi-x64`, `shim-x64`), because they are not in UBI 9. The image only contains static files: syslinux in the root, and GRUB 2 and shim under `grub2/`. Its default command copies them into `/var/lib/tftpboot`. The image has no RPM database, so `/usr/share/licenses/foreman-boot-files/PACKAGES` names each package with its source RPM, next to the GRUB 2 license text. syslinux-tftpboot and shim-x64 ship no license file. License: `GPL-2.0-or-later AND GPL-3.0-or-later AND BSD-2-Clause-Patent`.
 
 ## Package availability
 
@@ -62,4 +63,4 @@ Images follow the usual pattern: a numeric `USER 1001:0`, group 0 owning writabl
 
 ## Licensing
 
-The images contain GPL-licensed software, including Foreman and Smart Proxy. Containerfiles in this repository are Apache-2.0. Each image carries an `org.opencontainers.image.licenses` label. Each published image that ships GPL components must carry the license texts and make the corresponding source available, for example as a source image built from the SRPMs. This is not implemented yet. RPMs are installed unpatched.
+The images contain GPL-licensed software, including Foreman and Smart Proxy. Containerfiles in this repository are Apache-2.0. Each image carries an `org.opencontainers.image.licenses` label. RPMs are installed unpatched, and their license texts stay in `/usr/share/licenses`. The SBOMs attached to every release list each package with its source RPM. The release notes name where the distributors publish the matching sources: the Foreman and plugin repositories under `yum.theforeman.org/{releases,plugins}/<version>/el9/source/`, the UBI 9 source repositories, and CentOS Stream 9 for `ipmitool` and the boot loaders. The project does not host a copy of the sources yet.

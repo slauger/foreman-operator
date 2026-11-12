@@ -14,6 +14,13 @@ RUN mkdir -p /boot-files/grub2 \
         /boot-files/grub2/ \
     && chmod -R a+rX,go-w /boot-files
 
+# The final image has no RPM database, so the SBOM cannot see these packages. PACKAGES names
+# each package with its source RPM. syslinux-tftpboot and shim-x64 ship no license file.
+RUN mkdir -p /licenses \
+    && rpm -q --qf '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH} %{SOURCERPM} %{LICENSE}\n' \
+        syslinux-tftpboot grub2-efi-x64 shim-x64 > /licenses/PACKAGES \
+    && cp /usr/share/licenses/grub2-common/COPYING /licenses/grub2-COPYING
+
 FROM registry.access.redhat.com/ubi9/ubi-minimal:9.8-1794186349
 
 LABEL org.opencontainers.image.title="foreman-boot-files" \
@@ -22,6 +29,7 @@ LABEL org.opencontainers.image.title="foreman-boot-files" \
       org.opencontainers.image.licenses="GPL-2.0-or-later AND GPL-3.0-or-later AND BSD-2-Clause-Patent"
 
 COPY --from=build /boot-files /boot-files
+COPY --from=build /licenses /usr/share/licenses/foreman-boot-files
 
 ENV HOME=/tmp
 

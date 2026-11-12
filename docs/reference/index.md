@@ -49,7 +49,7 @@ Default repositories:
 | `Pending` | Waiting for a dependency, such as the database Secret or the referenced Foreman |
 | `Migrating` | `Foreman` only: writers are stopped or the migration Job runs |
 | `Progressing` | Workloads are rolling out, or a Smart Proxy registration is retried |
-| `Running` | Fully reconciled |
+| `Running` | Fully reconciled. Every pod of the web and orchestrator workloads, or of the proxy, runs the current template |
 | `Failed` | A reconcile error or a failed migration Job |
 
 ## Conditions

@@ -8,8 +8,7 @@ import (
 )
 
 func TestSetPodTemplateKeepsRestart(t *testing.T) {
-	desired := corev1.PodTemplateSpec{}
-	desired.Annotations = map[string]string{checksumAnnotation: "new"}
+	desired := corev1.PodTemplateSpec{Annotations: map[string]string{checksumAnnotation: "new"}}
 
 	d := &appsv1.Deployment{}
 	d.Spec.Template.Annotations = map[string]string{checksumAnnotation: "old", restartedAtAnnotation: "2026-11-12T01:40:47Z"}

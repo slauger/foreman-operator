@@ -40,7 +40,9 @@ stateDiagram-v2
 
 ## Health
 
-Web readiness and startup probes use the HTTP status of `/api/v2/ping` only, with the `Host` header set to `spec.fqdn`. Liveness is a TCP check. The response body includes dependency status, which must not remove all web pods when a dependency fails.
+Web startup, readiness, and liveness probes use the HTTP status of `/api/v2/ping` only, with the `Host` header set to `spec.fqdn`. The response body includes dependency status, which must not remove all web pods when a dependency fails.
+
+The Smart Proxy probes complete a TLS handshake with `curl` against `/version` and accept any HTTP status. A plain TCP check would make WEBrick log an SSL error on every probe.
 
 ## Backup and restore
 

@@ -1,6 +1,6 @@
 # Getting Started
 
-This guide installs the operator from a checkout and creates a Foreman with its frontend and, optionally, a provisioning Smart Proxy. The resources follow `config/samples` and the E2E test in `tests/e2e/mvp/resources.yaml`.
+This guide installs a released operator from the chart registry and creates a Foreman with its frontend and, optionally, a provisioning Smart Proxy. The resources follow `config/samples` and the E2E test in `tests/e2e/mvp/resources.yaml`.
 
 !!! warning "Experimental"
     This is an unofficial, unsupported prototype. It is not affiliated with or endorsed by the Foreman project. Use a test cluster.
@@ -23,28 +23,30 @@ The images are amd64 only, except the operator and the frontend.
 
 ## Install the operator
 
-The chart is not published yet. Install it from a checkout. Helm installs CRDs only on the first install and never upgrades them, so apply them explicitly:
+Releases publish the charts to `oci://ghcr.io/slauger/charts`, see the [releases](https://github.com/slauger/foreman-operator/releases) for the versions. Helm installs CRDs only on the first install and never upgrades them, so apply them explicitly from the chart before every install or upgrade:
 
 ```bash
-git clone https://github.com/slauger/foreman-operator.git
-cd foreman-operator
+VERSION=0.1.0
 
-kubectl apply --server-side -f charts/foreman-operator/crds/
+helm pull oci://ghcr.io/slauger/charts/foreman-operator --version "${VERSION}" --untar
+kubectl apply --server-side -f foreman-operator/crds/
 
-helm install foreman-operator charts/foreman-operator \
+helm install foreman-operator oci://ghcr.io/slauger/charts/foreman-operator \
+  --version "${VERSION}" \
   --namespace foreman-operator \
-  --create-namespace \
-  --set image.tag=develop
+  --create-namespace
 ```
 
-The operator image tag defaults to the chart `appVersion` `0.0.0`, for which no image is published yet, so `image.tag` is set explicitly. By default, the operator watches all namespaces and uses the image tag `develop` for Foreman, the frontend, and Smart Proxy. See the [chart README](https://github.com/slauger/foreman-operator/blob/develop/charts/foreman-operator/README.md) for all values.
+The chart `appVersion` is the tag of the operator image and the default tag of the Foreman, frontend, Smart Proxy, and boot-files images. By default, the operator watches all namespaces. See the [chart README](https://github.com/slauger/foreman-operator/blob/main/charts/foreman-operator/README.md) for all values. To test the `develop` branch instead, install the chart from a checkout as described there.
 
 ## Create the namespace and database
 
 ```bash
 kubectl create namespace foreman
 
-helm install foreman-db charts/foreman-db-cnpg --namespace foreman
+helm install foreman-db oci://ghcr.io/slauger/charts/foreman-db-cnpg \
+  --version "${VERSION}" \
+  --namespace foreman
 ```
 
 The chart creates the CloudNativePG `Cluster` `foreman-db`. CloudNativePG then writes the Secret `foreman-db-app`, which the `Foreman` reads.

@@ -1,7 +1,7 @@
 # Supply Chain Security
 
 !!! note "Status"
-    The `Images` workflow builds and pushes all images with `sign: false` while the repository is private. This page describes what is active today and the controls that are switched on once the repository is public.
+    The `Images` workflow builds and pushes all images with `sign: false`. The `Release` workflow signs only when the repository is public. This page describes what is active today and the controls that are switched on once the repository is public.
 
 ## Active today
 
@@ -22,7 +22,7 @@
 
 | Control | Tool | Workflow |
 |---|---|---|
-| Keyless image signing | [cosign](https://docs.sigstore.dev/cosign/) with GitHub Actions OIDC | `_container-build.yaml` |
+| Keyless image and chart signing | [cosign](https://docs.sigstore.dev/cosign/) with GitHub Actions OIDC | `_container-build.yaml`, `release.yaml` |
 | GitHub build provenance | [SLSA](https://slsa.dev/) through `actions/attest-build-provenance` | `_container-build.yaml` |
 | SBOM attestation | CycloneDX from [syft](https://github.com/anchore/syft), attested with cosign | `_container-build.yaml` |
 | Policy validation | [Conforma](https://github.com/conforma) with `.conforma/policy.yaml` | `_conforma-validate.yaml`, not called by a pipeline yet |
@@ -30,14 +30,14 @@
 Once images are signed, a signature can be verified like this:
 
 ```bash
-cosign verify ghcr.io/slauger/foreman-operator:develop \
+cosign verify ghcr.io/slauger/foreman-operator:0.1.0 \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   --certificate-identity-regexp 'github\.com/slauger/foreman-operator'
 ```
 
 ## Limits while the repository is private
 
-- Keyless cosign signatures are recorded in the public Rekor transparency log. They expose image names and the repository identity. The `Images` workflow therefore runs with `sign: false` until the project is published.
+- Keyless cosign signatures are recorded in the public Rekor transparency log. They expose image names and the repository identity. The `Images` workflow therefore runs with `sign: false`. The `Release` workflow checks the repository visibility and signs only when it is public.
 - GitHub artifact attestations for private repositories require GitHub Enterprise Cloud.
 - GitHub Pages sites are public even for private repositories, so the documentation is not deployed automatically.
 
@@ -49,4 +49,4 @@ These statements come from the documentation of the respective services and have
 
 ## License compliance
 
-Images that ship GPL components are part of the supply chain obligations. Each image carries an `org.opencontainers.image.licenses` label. License texts and source images with the matching SRPMs are still missing. See [Container Images](../concepts/images.md#licensing).
+Images that ship GPL components are part of the supply chain obligations. Each image carries an `org.opencontainers.image.licenses` label. Release SBOMs list every package with its source RPM, and the release notes point to the published sources. See [Container Images](../concepts/images.md#licensing).

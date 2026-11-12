@@ -9,6 +9,9 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].image
           value: ghcr.io/slauger/foreman-operator:1.2.3
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --default-image-tag=1.2.3
   - it: runs hardened
     asserts:
       - equal:

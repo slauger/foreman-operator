@@ -389,11 +389,22 @@ spec:
                     type: string
                 type: object
               plugins:
-                description: Plugins lists the Foreman plugins to enable. Each plugin
-                  must be present in the image.
+                description: |-
+                  Plugins lists the Foreman plugins to enable from the catalog in the image. Their
+                  dependencies are enabled with them. Changing the list runs a migration.
                 items:
+                  description: ForemanPlugin names a plugin from the catalog in the
+                    Foreman image.
+                  enum:
+                  - foreman_ansible
+                  - foreman_discovery
+                  - foreman_puppet
+                  - foreman_remote_execution
+                  - foreman_templates
+                  - foreman_webhooks
                   type: string
                 type: array
+                x-kubernetes-list-type: set
               secretsRef:
                 description: |-
                   SecretsRef names the Secret with "encryption-key", "secret-key-base", "admin-password",

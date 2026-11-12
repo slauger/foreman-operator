@@ -235,15 +235,46 @@ func TestForemanRequiresCertManagerForIssuer(t *testing.T) {
 func TestMigrationHashTracksImageAndPlugins(t *testing.T) {
 	images := DefaultImages("test")
 	a := testForeman()
-	a.Spec.Plugins = []string{"foreman_remote_execution", "foreman_discovery"}
+	a.Spec.Plugins = []foremanv1alpha1.ForemanPlugin{"foreman_remote_execution", "foreman_discovery"}
 	b := testForeman()
-	b.Spec.Plugins = []string{"foreman_discovery", "foreman_remote_execution"}
+	b.Spec.Plugins = []foremanv1alpha1.ForemanPlugin{"foreman_discovery", "foreman_remote_execution"}
 	if migrationHash(a, images) != migrationHash(b, images) {
 		t.Error("plugin order must not change the hash")
+	}
+	c := testForeman()
+	c.Spec.Plugins = []foremanv1alpha1.ForemanPlugin{"foreman_discovery"}
+	if migrationHash(a, images) == migrationHash(c, images) {
+		t.Error("a different plugin set must change the hash")
 	}
 	b.Spec.Image.Tag = "other"
 	if migrationHash(a, images) == migrationHash(b, images) {
 		t.Error("a different image must change the hash")
+	}
+}
+
+func TestEnabledPlugins(t *testing.T) {
+	tests := []struct {
+		plugins []foremanv1alpha1.ForemanPlugin
+		want    string
+	}{
+		// Without plugins the variable is empty, which keeps every installed plugin off.
+		{nil, ""},
+		{[]foremanv1alpha1.ForemanPlugin{"foreman_discovery"}, "foreman_discovery"},
+		{[]foremanv1alpha1.ForemanPlugin{"foreman_remote_execution"}, "foreman-tasks foreman_remote_execution"},
+		{[]foremanv1alpha1.ForemanPlugin{"foreman_remote_execution", "foreman_ansible"}, "foreman-tasks foreman_ansible foreman_remote_execution"},
+	}
+	for _, tt := range tests {
+		f := testForeman()
+		f.Spec.Plugins = tt.plugins
+		var got *corev1.EnvVar
+		for _, e := range foremanEnv(f, 5) {
+			if e.Name == "FOREMAN_ENABLED_PLUGINS" {
+				got = &e
+			}
+		}
+		if got == nil || got.Value != tt.want {
+			t.Errorf("plugins %v: FOREMAN_ENABLED_PLUGINS = %+v, want %q", tt.plugins, got, tt.want)
+		}
 	}
 }
 

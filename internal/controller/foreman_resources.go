@@ -78,11 +78,27 @@ func foremanImage(f *foremanv1alpha1.Foreman, images Images) string {
 	return imageRef(f.Spec.Image, images.Foreman, images.Tag)
 }
 
+// pluginDependencies lists the plugins each catalog plugin needs loaded with it. The image
+// installs all of them, and their bundler.d files load only what FOREMAN_ENABLED_PLUGINS lists.
+var pluginDependencies = map[foremanv1alpha1.ForemanPlugin][]string{
+	"foreman_ansible":          {"foreman_remote_execution", "foreman-tasks"},
+	"foreman_remote_execution": {"foreman-tasks"},
+}
+
+// enabledPlugins returns the requested plugins and their dependencies, sorted.
+func enabledPlugins(f *foremanv1alpha1.Foreman) []string {
+	plugins := make([]string, 0, len(f.Spec.Plugins))
+	for _, p := range f.Spec.Plugins {
+		plugins = append(plugins, string(p))
+		plugins = append(plugins, pluginDependencies[p]...)
+	}
+	slices.Sort(plugins)
+	return slices.Compact(plugins)
+}
+
 // migrationHash identifies a database schema state: the image and the enabled plugins.
 func migrationHash(f *foremanv1alpha1.Foreman, images Images) string {
-	plugins := slices.Clone(f.Spec.Plugins)
-	slices.Sort(plugins)
-	return checksum(append([]string{foremanImage(f, images)}, plugins...)...)[:16]
+	return checksum(append([]string{foremanImage(f, images)}, enabledPlugins(f)...)...)[:16]
 }
 
 func migrationJobName(f *foremanv1alpha1.Foreman, hash string) string {
@@ -207,6 +223,8 @@ func foremanEnv(f *foremanv1alpha1.Foreman, dbPool int) []corev1.EnvVar {
 		secretEnv("SECRET_KEY_BASE", secrets, keySecretKeyBase),
 		{Name: "DYNFLOW_REDIS_URL", Value: valkeyURL(f, valkeyDBDynflow)},
 		{Name: "REDIS_PROVIDER", Value: "DYNFLOW_REDIS_URL"},
+		// Always set: when it is unset, the bundler.d files load every installed plugin.
+		{Name: "FOREMAN_ENABLED_PLUGINS", Value: strings.Join(enabledPlugins(f), " ")},
 	}
 }
 

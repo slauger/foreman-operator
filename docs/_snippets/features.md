@@ -7,4 +7,5 @@
 - 🚪 **TLS Passthrough Frontend** - Apache with mutual TLS as a sidecar of Puma, behind a LoadBalancer, an OpenShift Route, or a Gateway API TLSRoute; Puma listens only on a Unix socket
 - 🔒 **Rootless Images** - Own UBI 9 images, built for random UIDs; only dnsmasq starts as root, with a minimal capability set
 - 🛡️ **Supply Chain Security** - BuildKit provenance and SBOMs, Renovate, and govulncheck; cosign signing once the repository is public
-- 🧭 **Planned** - Plugin catalog, Remote Execution, recurring tasks, `Release` upgrades, OpenShift qualification, and Katello
+- 🧩 **Plugin Catalog** - Remote Execution, Ansible, Discovery, Templates, Webhooks, and Puppet in the Foreman image, enabled per instance
+- 🧭 **Planned** - Remote Execution on the Smart Proxy, recurring tasks, `Release` upgrades, OpenShift qualification, and Katello

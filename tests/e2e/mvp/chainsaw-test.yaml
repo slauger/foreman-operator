@@ -51,6 +51,17 @@ spec:
             check:
               ($error == null): true
 
+    - name: Only the enabled plugin and its dependency are loaded
+      try:
+        - script:
+            content: |
+              password="$(kubectl -n foreman-e2e get secret foreman-secrets -o jsonpath='{.data.admin-password}' | base64 -d)"
+              # foreman_discovery and the other catalog plugins are installed but must stay off.
+              curl -sfk -u "admin:${password}" "https://e2e-openvox.lnxlabs.de/api/v2/plugins?per_page=100" \
+                | jq -r '.results[].name' | grep '^foreman' | LC_ALL=C sort | tr '\n' ' '
+            check:
+              ($stdout): "foreman-tasks foreman_remote_execution "
+
     - name: Smart Proxy is registered with its features
       try:
         - assert:

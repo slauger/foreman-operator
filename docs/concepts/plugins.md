@@ -1,30 +1,38 @@
 # Plugins
 
 !!! note "Status"
-    Target design. `Foreman.spec.plugins` exists in the API, and changing it triggers a migration because the list is part of the migration hash. The default Foreman image contains no plugins yet, and the operator does not enable plugins or keep a catalog.
+    Implemented for the Foreman side. The Foreman image contains a fixed plugin catalog, and `spec.plugins` selects which of them are loaded. The matching Smart Proxy plugins, such as Remote Execution over SSH, are not in the Smart Proxy image yet.
 
 ## Model
 
-- `spec.plugins` lists the enabled plugins. Each plugin must be present in the image.
-- The same plugin list applies to every workload, including recurring tasks. A task started with a different list fails.
-- The operator keeps a catalog that maps a plugin to its Smart Proxy plugin and its dependencies.
-- **Enabling a plugin is a migration.** It follows the same order as an upgrade, not a plain rollout.
+- `spec.plugins` lists the enabled plugins. The API accepts only plugins from the catalog.
+- The operator adds the dependencies of each plugin and sets the result as `FOREMAN_ENABLED_PLUGINS` on every Foreman workload and the migration Job.
+- The bundler.d file of each packaged plugin loads it only if `FOREMAN_ENABLED_PLUGINS` lists it. The variable is always set, so an empty list keeps every installed plugin off. The image build fails if a plugin would load unconditionally.
+- **Enabling a plugin is a migration.** The enabled plugins are part of the migration hash, so a change follows the same order as an upgrade, not a plain rollout. The migration Job also runs the seeds, which create the plugin's templates and permissions.
+- Disabling a plugin leaves its tables and data in the database.
+
+## Catalog
+
+| Plugin | Also enables |
+|---|---|
+| `foreman_ansible` | `foreman_remote_execution`, `foreman-tasks` |
+| `foreman_discovery` | |
+| `foreman_puppet` | |
+| `foreman_remote_execution` | `foreman-tasks` |
+| `foreman_templates` | |
+| `foreman_webhooks` | |
+
+Not in the catalog:
+
+| Plugin | Reason |
+|---|---|
+| `foreman_bootdisk` | Needs `/usr/bin/isohybrid`, which UBI 9 lacks |
+| `foreman_openscap` | Needs `scap-security-guide`, which UBI 9 lacks |
+| `katello` | See [Katello](katello.md) |
 
 ## Extra plugins
 
-Plugins are RPM-packaged gems with dependencies and assets, so mounting them from a volume does not fit. A plugin that is not in the default image requires a derived image, referenced by digest in `spec.image`.
-
-Selecting plugins at runtime needs support in the image. It must be implemented in the images of this project.
-
-## Candidates
-
-| Plugin | Stage | Package status |
-|---|---|---|
-| `foreman_discovery` | Base | Resolved on UBI 9, not in the image yet |
-| `foreman_remote_execution` | Base | Resolved on UBI 9, not in the image yet |
-| `foreman_puppet` | To be decided | Resolved on UBI 9, not in the image yet |
-| `foreman_bootdisk` | Later | Packages missing on UBI 9 |
-| `katello` | [Katello](katello.md) | Not checked |
+Plugins are RPM-packaged gems with dependencies and assets, so mounting them from a volume does not fit. A plugin outside the catalog requires a derived image and a new catalog entry in the API.
 
 ## Licensing
 

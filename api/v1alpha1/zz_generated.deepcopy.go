@@ -242,7 +242,7 @@ func (in *ForemanSpec) DeepCopyInto(out *ForemanSpec) {
 	out.Image = in.Image
 	if in.Plugins != nil {
 		in, out := &in.Plugins, &out.Plugins
-		*out = make([]string, len(*in))
+		*out = make([]ForemanPlugin, len(*in))
 		copy(*out, *in)
 	}
 	in.TLS.DeepCopyInto(&out.TLS)

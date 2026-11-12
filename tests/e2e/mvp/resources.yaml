@@ -4,6 +4,8 @@ metadata:
   name: foreman
 spec:
   fqdn: e2e-openvox.lnxlabs.de
+  plugins:
+    - foreman_remote_execution
   tls:
     issuerRef:
       name: foreman-internal-ca

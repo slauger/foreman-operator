@@ -7,7 +7,7 @@
 | `fqdn` | string | Yes | | Primary hostname. Used for `foreman_url`, the client certificate CN, and the frontend |
 | `aliases` | []string | No | | Additional accepted hostnames |
 | `image` | [image](index.md#image) | No | | Foreman image |
-| `plugins` | []string | No | | Plugins to enable. Each plugin must be present in the image. Today the list only changes the migration hash, see [Plugins](../concepts/plugins.md) |
+| `plugins` | []string | No | | Plugins to enable from the [catalog](../concepts/plugins.md#catalog). Dependencies are enabled with them, and a change runs a migration |
 | `tls` | [tls](index.md#tls) | Yes | | Source of the client certificate Foreman presents to Smart Proxies |
 | `database.cluster.name` | string | Yes | | CloudNativePG Cluster name. The operator reads the `uri` key of its credentials Secret |
 | `database.cluster.credentialsSecretRef` | string | No | `<cluster>-app` | Overrides the credentials Secret |

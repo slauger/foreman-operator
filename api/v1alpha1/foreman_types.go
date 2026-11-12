@@ -45,9 +45,11 @@ type ForemanSpec struct {
 	// +optional
 	Image ImageSpec `json:"image,omitempty"`
 
-	// Plugins lists the Foreman plugins to enable. Each plugin must be present in the image.
+	// Plugins lists the Foreman plugins to enable from the catalog in the image. Their
+	// dependencies are enabled with them. Changing the list runs a migration.
+	// +listType=set
 	// +optional
-	Plugins []string `json:"plugins,omitempty"`
+	Plugins []ForemanPlugin `json:"plugins,omitempty"`
 
 	// TLS selects the source of the internal certificates.
 	TLS TLSSpec `json:"tls"`
@@ -77,6 +79,10 @@ type ForemanSpec struct {
 	// +optional
 	Dynflow DynflowSpec `json:"dynflow,omitempty"`
 }
+
+// ForemanPlugin names a plugin from the catalog in the Foreman image.
+// +kubebuilder:validation:Enum=foreman_ansible;foreman_discovery;foreman_puppet;foreman_remote_execution;foreman_templates;foreman_webhooks
+type ForemanPlugin string
 
 // DatabaseSpec selects the CloudNativePG cluster.
 type DatabaseSpec struct {

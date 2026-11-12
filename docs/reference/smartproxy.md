@@ -9,6 +9,7 @@
 | `url` | string | Yes | | Address registered in Foreman, must start with `https://`. Its host is the certificate CN, its port the HTTPS port of the proxy |
 | `image` | [image](index.md#image) | No | | Smart Proxy image, also used for the dnsmasq container |
 | `tls` | [tls](index.md#tls) | Yes | | Source of the server and client certificate |
+| `networks` | list | For `tftp` and `dnsmasq` | | At most one network |
 | `networks[].attachment` | string | Yes | | NetworkAttachmentDefinition name, in the same namespace |
 | `networks[].address` | string | Yes | | Static address in CIDR notation |
 | `features` | object | Yes | | See below |
@@ -16,7 +17,7 @@
 | `storage.storageClass` | string | No | | Empty uses the cluster default |
 | `resources` | ResourceRequirements | No | requests 50m CPU and 256Mi, limit 512Mi | Compute resources of the proxy container |
 
-Networks are attached as `net1` to `netN` in list order. Only the first network gets its static address, assigned by the dnsmasq container, and dnsmasq serves only `net1`. The NetworkAttachmentDefinition can therefore use `"ipam": {}`.
+The network is attached as `net1`. The dnsmasq container assigns its static address and serves only `net1`, so the NetworkAttachmentDefinition can use `"ipam": {}`.
 
 ## Features
 
@@ -25,12 +26,12 @@ Networks are attached as `net1` to `netN` in list order. Only the first network 
 | `tftp.serverName` | No | Overrides the announced TFTP server name. Defaults to the address of the first network |
 | `tftp.bootFiles` | No | [image](index.md#image) whose boot loaders an init container copies into the TFTP root. Defaults to the `boot-files` image |
 | `templates.url` | Yes | Address hosts use to fetch templates, usually `http://<address>:8000` |
-| `dhcp.provider` | Yes | `dnsmasq` or `infoblox`. Only `dnsmasq` is in the image |
+| `dhcp.provider` | Yes | `dnsmasq`, the only provider in the image |
 | `dhcp.subnets[].network` | Yes | Subnet in CIDR notation, IPv4 only |
 | `dhcp.subnets[].range` | For `dnsmasq` | Dynamic range as `first-last` |
 | `dhcp.subnets[].gateway` | No | Announced as the default router (option 3). Without it, no router is announced |
 | `dhcp.subnets[].dnsServers` | No | Announced DNS servers (option 6) |
-| `dns.provider` | No | `dns_nsupdate` (default) or `dns_nsupdate_gss`. Only `dns_nsupdate` with a TSIG key is wired up |
+| `dns.provider` | No | `dns_nsupdate` (default and only value) |
 | `dns.server` | Yes | DNS server to update |
 | `dns.keySecretRef` | No | Secret with the TSIG key under `key` |
 | `bmc.defaultProvider` | No | `ipmitool` (default), `redfish`, `shell`, or `ssh`. See [Provisioning](../concepts/provisioning.md#dns-and-bmc) |
@@ -42,7 +43,8 @@ Networks are attached as `net1` to `netN` in list order. Only the first network 
 
 - `Execution` does not support `dhcp`, `tftp`, or `dns`.
 - `Provisioning` does not support `remoteExecutionSSH` or `ansible`.
-- The `dnsmasq` provider requires at least one network.
+- At most one network is supported.
+- The `dnsmasq` provider and `tftp` require a network.
 - The `dnsmasq` provider supports exactly one subnet per `SmartProxy`.
 - The `dnsmasq` provider requires a `range`.
 

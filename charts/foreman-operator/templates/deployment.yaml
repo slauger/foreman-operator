@@ -48,7 +48,7 @@ spec:
           image: {{ include "foreman-operator.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
-            - --default-image-tag={{ .Values.operator.defaultImageTag }}
+            - --default-image-tag={{ default .Chart.AppVersion .Values.operator.defaultImageTag }}
             - --leader-elect={{ .Values.operator.leaderElection }}
             - --metrics-secure={{ .Values.operator.metricsSecure }}
             - --zap-log-level={{ .Values.operator.logLevel }}

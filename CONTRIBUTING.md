@@ -38,6 +38,8 @@ make docs-serve    # Documentation with live reload
 3. Update the documentation in the same change.
 4. Open a pull request against `develop`.
 
+Releases are cut from `main`, see [Releasing](docs/development/releasing.md).
+
 ## Licensing
 
 Contributions are licensed under Apache-2.0. Do not copy code, templates, or

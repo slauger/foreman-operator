@@ -1,0 +1,221 @@
+name: Release
+
+# Started by hand on main. semantic-release derives the version from the Conventional Commits
+# since the last tag, then all images and the chart are published with that version.
+# Signatures, SBOM attestations, and build provenance are only created once the repository is
+# public, see docs/guides/supply-chain-security.md.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  semantic-release:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    outputs:
+      new-release-published: ${{ steps.semantic.outputs.new_release_published }}
+      new-release-version: ${{ steps.semantic.outputs.new_release_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Create baseline tag for initial release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! git tag -l 'v*' | grep -q .; then
+            FIRST_COMMIT=$(git rev-list --max-parents=0 HEAD)
+            gh api repos/${{ github.repository }}/git/refs \
+              -f ref="refs/tags/v0.0.0" \
+              -f sha="${FIRST_COMMIT}"
+            git tag v0.0.0 "${FIRST_COMMIT}"
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Run semantic-release
+        id: semantic
+        uses: cycjimmy/semantic-release-action@v8.1.4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  operator:
+    needs: semantic-release
+    if: needs.semantic-release.outputs.new-release-published == 'true'
+    uses: ./.github/workflows/_container-build.yaml
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    with:
+      image_name: foreman-operator
+      dockerfile: images/foreman-operator/Containerfile
+      context: .
+      platforms: linux/amd64,linux/arm64
+      push: true
+      latest: true
+      image_tag: ${{ needs.semantic-release.outputs.new-release-version }}
+      build_args: VERSION=${{ needs.semantic-release.outputs.new-release-version }}
+      sign: ${{ !github.event.repository.private }}
+
+  components:
+    needs: semantic-release
+    if: needs.semantic-release.outputs.new-release-published == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Foreman and Smart Proxy RPMs exist for x86_64 only.
+          - image: foreman
+            platforms: linux/amd64
+          - image: smart-proxy
+            platforms: linux/amd64
+          - image: boot-files
+            platforms: linux/amd64
+          - image: frontend
+            platforms: linux/amd64,linux/arm64
+    uses: ./.github/workflows/_container-build.yaml
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    with:
+      image_name: foreman-operator-${{ matrix.image }}
+      dockerfile: images/${{ matrix.image }}/Containerfile
+      context: images/${{ matrix.image }}
+      platforms: ${{ matrix.platforms }}
+      push: true
+      latest: true
+      image_tag: ${{ needs.semantic-release.outputs.new-release-version }}
+      sign: ${{ !github.event.repository.private }}
+
+  helm-charts:
+    needs: [semantic-release, operator, components]
+    if: needs.semantic-release.outputs.new-release-published == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v5
+
+      - name: Install cosign
+        if: ${{ !github.event.repository.private }}
+        uses: sigstore/cosign-installer@v4.1.3
+
+      - name: Login to ghcr.io
+        run: |
+          echo "${{ github.token }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      # The chart appVersion is the default tag of the operator image and, through
+      # operator.defaultImageTag, of all component images.
+      - name: Inject version into Chart.yaml
+        run: |
+          VERSION="${{ needs.semantic-release.outputs.new-release-version }}"
+          for chart in foreman-operator foreman-db-cnpg; do
+            sed -i "s/^version:.*/version: ${VERSION}/" charts/${chart}/Chart.yaml
+            sed -i "s/^appVersion:.*/appVersion: \"${VERSION}\"/" charts/${chart}/Chart.yaml
+          done
+
+      - name: Package and push charts
+        run: |
+          for chart in foreman-operator foreman-db-cnpg; do
+            helm package charts/${chart}
+            OUTPUT=$(helm push ${chart}-*.tgz oci://ghcr.io/${{ github.repository_owner }}/charts 2>&1)
+            echo "${OUTPUT}"
+            DIGEST=$(echo "${OUTPUT}" | grep -oP 'sha256:[a-f0-9]+')
+            echo "${chart}=${DIGEST}" >> chart-digests.txt
+          done
+
+      - name: Sign Helm charts with cosign (keyless)
+        if: ${{ !github.event.repository.private }}
+        run: |
+          echo "${{ github.token }}" | cosign login ghcr.io -u ${{ github.actor }} --password-stdin
+          while IFS='=' read -r chart digest; do
+            [ -z "${chart}" ] && continue
+            cosign sign --yes "ghcr.io/${{ github.repository_owner }}/charts/${chart}@${digest}"
+          done < chart-digests.txt
+
+      - name: Upload chart artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: helm-charts
+          path: '*.tgz'
+
+  release-assets:
+    needs: [semantic-release, helm-charts]
+    if: needs.semantic-release.outputs.new-release-published == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download chart artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: helm-charts
+
+      - name: Download SBOM artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: sbom-*
+          path: sbom
+          merge-multiple: true
+
+      - name: Upload assets to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          VERSION="${{ needs.semantic-release.outputs.new-release-version }}"
+          gh release upload "v${VERSION}" ./*.tgz sbom/*.json
+
+      # The images ship GPL-licensed packages unmodified. The SBOMs list every package with its
+      # source RPM, and the notes name where the corresponding sources are published.
+      - name: Append image and source notes to release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          VERSION="${{ needs.semantic-release.outputs.new-release-version }}"
+          FOREMAN_VERSION=$(grep -oP '^ARG FOREMAN_VERSION=\K.+' images/foreman/Containerfile)
+          BODY=$(gh release view "v${VERSION}" --json body -q .body)
+          {
+            printf '%s\n\n' "${BODY}"
+            printf '## Install\n\n'
+            printf '```bash\nhelm install foreman-operator oci://ghcr.io/%s/charts/foreman-operator --version %s \\\n  --namespace foreman-operator --create-namespace\n```\n\n' "${{ github.repository_owner }}" "${VERSION}"
+            printf 'Apply the CRDs from `crds/` of the chart before every upgrade, see the chart README.\n\n'
+            printf '## Images\n\n'
+            printf '| Image | Tag |\n|---|---|\n'
+            for image in foreman-operator foreman-operator-foreman foreman-operator-smart-proxy foreman-operator-boot-files foreman-operator-frontend; do
+              printf '| `ghcr.io/%s/%s` | `%s` |\n' "${{ github.repository_owner }}" "${image}" "${VERSION}"
+            done
+            printf '\n## Source code\n\n'
+            printf 'The images contain unmodified packages under the GPL and other licenses. The SBOMs attached to this release list every package with its source RPM. The sources are published by their distributors:\n\n'
+            printf -- '- Foreman %s and plugins: https://yum.theforeman.org/releases/%s/el9/source/ and https://yum.theforeman.org/plugins/%s/el9/source/\n' "${FOREMAN_VERSION}" "${FOREMAN_VERSION}" "${FOREMAN_VERSION}"
+            printf -- '- UBI 9 packages: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/x86_64/baseos/source/SRPMS/ and https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/x86_64/appstream/source/SRPMS/\n'
+            printf -- '- CentOS Stream 9 packages (`ipmitool`, boot loaders): https://mirror.stream.centos.org/9-stream/\n'
+          } > release-notes.md
+          gh release edit "v${VERSION}" --notes-file release-notes.md

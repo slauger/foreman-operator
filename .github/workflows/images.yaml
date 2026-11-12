@@ -1,0 +1,90 @@
+name: Images
+
+# Builds all component images. Pushes from develop are tagged "develop", feature branches get
+# their branch name as tag, so they can be tested on a cluster without touching "develop".
+# Images are not signed while the repository is private: keyless signatures and provenance
+# would publish repository details to the public Sigstore log.
+
+on:
+  push:
+    branches: [develop, 'feat/**', 'fix/**']
+    paths:
+      - 'images/**'
+      - 'api/**'
+      - 'cmd/**'
+      - 'internal/**'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/images.yaml'
+      - '.github/workflows/_container-build.yaml'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Image tag'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - name: Determine tag
+        id: tag
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          tag="${INPUT_TAG:-${GITHUB_REF_NAME//\//-}}"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
+  operator:
+    needs: prepare
+    uses: ./.github/workflows/_container-build.yaml
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    with:
+      image_name: foreman-operator
+      dockerfile: images/foreman-operator/Containerfile
+      context: .
+      platforms: linux/amd64,linux/arm64
+      push: true
+      image_tag: ${{ needs.prepare.outputs.tag }}
+      build_args: VERSION=${{ needs.prepare.outputs.tag }}
+      sign: false
+
+  components:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Foreman and Smart Proxy RPMs exist for x86_64 only.
+          - image: foreman
+            platforms: linux/amd64
+          - image: smart-proxy
+            platforms: linux/amd64
+          - image: boot-files
+            platforms: linux/amd64
+          - image: frontend
+            platforms: linux/amd64,linux/arm64
+    uses: ./.github/workflows/_container-build.yaml
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    with:
+      image_name: foreman-operator-${{ matrix.image }}
+      dockerfile: images/${{ matrix.image }}/Containerfile
+      context: images/${{ matrix.image }}
+      platforms: ${{ matrix.platforms }}
+      push: true
+      image_tag: ${{ needs.prepare.outputs.tag }}
+      sign: false

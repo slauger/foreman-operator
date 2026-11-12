@@ -1,0 +1,315 @@
+name: Container Build
+
+on:
+  workflow_call:
+    inputs:
+      image_name:
+        description: 'Image name (without registry prefix)'
+        required: true
+        type: string
+      dockerfile:
+        description: 'Path to Containerfile'
+        required: true
+        type: string
+      context:
+        description: 'Build context path'
+        required: false
+        type: string
+        default: '.'
+      platforms:
+        description: 'Target platforms (comma-separated)'
+        required: false
+        type: string
+        default: 'linux/amd64,linux/arm64'
+      push:
+        description: 'Push images regardless of branch'
+        required: false
+        type: boolean
+        default: false
+      image_tag:
+        description: 'Custom image tag (default: short git SHA or version tag)'
+        required: false
+        type: string
+        default: ''
+      latest:
+        description: 'Also tag the image as :latest'
+        required: false
+        type: boolean
+        default: false
+      alias_image_name:
+        description: 'Optional unsuffixed alias image name published from the same manifest as a backward-compat alias for the default major. Empty = no alias.'
+        required: false
+        type: string
+        default: ''
+      build_args:
+        description: 'Build-time arguments passed to docker build (one KEY=VALUE per line)'
+        required: false
+        type: string
+        default: ''
+      allow_failure:
+        description: 'Do not fail the workflow if the build/manifest fails (best-effort, e.g. pre-release majors)'
+        required: false
+        type: boolean
+        default: false
+      sign:
+        description: 'Sign images with cosign keyless signing'
+        required: false
+        type: boolean
+        default: true
+    outputs:
+      version:
+        description: 'Image version tag'
+        value: ${{ jobs.prepare.outputs.version }}
+      image:
+        description: 'Full image reference'
+        value: ${{ jobs.manifest.outputs.image }}
+      digest:
+        description: 'Image manifest digest'
+        value: ${{ jobs.manifest.outputs.digest }}
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - name: Determine version
+        id: version
+        run: |
+          if [[ -n "${{ inputs.image_tag }}" ]]; then
+            echo "version=${{ inputs.image_tag }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          else
+            SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+            echo "version=${SHORT_SHA}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build platform matrix
+        id: matrix
+        run: |
+          PLATFORMS='${{ inputs.platforms }}'
+          MATRIX='{"include":['
+          FIRST=true
+          for PLATFORM in ${PLATFORMS//,/ }; do
+            if [ "$FIRST" = true ]; then
+              FIRST=false
+            else
+              MATRIX="${MATRIX},"
+            fi
+            case "${PLATFORM}" in
+              linux/amd64) RUNNER="ubuntu-latest" ;;
+              linux/arm64) RUNNER="ubuntu-24.04-arm" ;;
+              *)           RUNNER="ubuntu-latest" ;;
+            esac
+            MATRIX="${MATRIX}{\"platform\":\"${PLATFORM}\",\"runner\":\"${RUNNER}\"}"
+          done
+          MATRIX="${MATRIX}]}"
+          echo "matrix=${MATRIX}" >> $GITHUB_OUTPUT
+
+  hadolint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Run hadolint
+        uses: hadolint/hadolint-action@v3.5.0
+        with:
+          dockerfile: ${{ inputs.dockerfile }}
+
+  build:
+    needs: [hadolint, prepare]
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set platform suffix
+        id: platform
+        run: |
+          SUFFIX="${{ matrix.platform }}"
+          echo "suffix=${SUFFIX//\//-}" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Login to ghcr.io
+        if: inputs.push
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Build and push
+        continue-on-error: ${{ inputs.allow_failure }}
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ inputs.context }}
+          file: ${{ inputs.dockerfile }}
+          platforms: ${{ matrix.platform }}
+          push: ${{ inputs.push }}
+          build-args: ${{ inputs.build_args }}
+          provenance: true
+          sbom: true
+          tags: ghcr.io/${{ github.repository_owner }}/${{ inputs.image_name }}:${{ needs.prepare.outputs.version }}-${{ steps.platform.outputs.suffix }}
+          cache-from: type=gha,scope=${{ inputs.image_name }}-${{ matrix.platform }}
+          cache-to: type=gha,mode=max,scope=${{ inputs.image_name }}-${{ matrix.platform }}
+
+  manifest:
+    if: inputs.push
+    needs: [prepare, build]
+    continue-on-error: ${{ inputs.allow_failure }}
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.result.outputs.image }}
+      digest: ${{ steps.result.outputs.digest }}
+    permissions:
+      packages: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Login to ghcr.io
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Install cosign
+        if: inputs.sign
+        uses: sigstore/cosign-installer@v4.1.3
+
+      - name: Install syft
+        uses: anchore/sbom-action/download-syft@v0.24.3
+
+      - name: Create and push manifest
+        run: |
+          IMAGE="ghcr.io/${{ github.repository_owner }}/${{ inputs.image_name }}"
+          VERSION="${{ needs.prepare.outputs.version }}"
+          PLATFORMS="${{ inputs.platforms }}"
+
+          SOURCES=""
+          for PLATFORM in ${PLATFORMS//,/ }; do
+            SUFFIX="${PLATFORM//\//-}"
+            SOURCES="${SOURCES} ${IMAGE}:${VERSION}-${SUFFIX}"
+          done
+
+          docker buildx imagetools create -t "${IMAGE}:${VERSION}" ${SOURCES}
+
+          if [[ "${{ inputs.latest }}" == "true" ]]; then
+            docker buildx imagetools create -t "${IMAGE}:latest" ${SOURCES}
+          fi
+
+          # Publish the unsuffixed backward-compat alias for the default major, from the
+          # same per-arch sources, so it shares the primary manifest digest.
+          ALIAS="${{ inputs.alias_image_name }}"
+          if [[ -n "${ALIAS}" ]]; then
+            ALIAS_IMAGE="ghcr.io/${{ github.repository_owner }}/${ALIAS}"
+            docker buildx imagetools create -t "${ALIAS_IMAGE}:${VERSION}" ${SOURCES}
+            if [[ "${{ inputs.latest }}" == "true" ]]; then
+              docker buildx imagetools create -t "${ALIAS_IMAGE}:latest" ${SOURCES}
+            fi
+          fi
+
+      - name: Get manifest digest
+        id: digest
+        run: |
+          IMAGE="ghcr.io/${{ github.repository_owner }}/${{ inputs.image_name }}"
+          VERSION="${{ needs.prepare.outputs.version }}"
+          DIGEST=$(docker buildx imagetools inspect "${IMAGE}:${VERSION}" --format '{{json .Manifest}}' | jq -r '.digest')
+          echo "digest=${DIGEST}" >> $GITHUB_OUTPUT
+
+      - name: Sign image with cosign (keyless)
+        if: inputs.sign
+        run: |
+          IMAGE="ghcr.io/${{ github.repository_owner }}/${{ inputs.image_name }}"
+          cosign sign --yes "${IMAGE}@${{ steps.digest.outputs.digest }}"
+          ALIAS="${{ inputs.alias_image_name }}"
+          if [[ -n "${ALIAS}" ]]; then
+            cosign sign --yes "ghcr.io/${{ github.repository_owner }}/${ALIAS}@${{ steps.digest.outputs.digest }}"
+          fi
+
+      # BuildKit already attaches an SPDX SBOM to every platform image. Dependency-Track and
+      # other CycloneDX-only consumers cannot read it, so syft generates both formats from the
+      # pushed per-platform images; they are also published as release assets.
+      - name: Generate SBOMs
+        env:
+          # Packages only: without this, every file owned by an RPM becomes a CycloneDX component
+          SYFT_FILE_METADATA_SELECTION: none
+        run: |
+          IMAGE="ghcr.io/${{ github.repository_owner }}/${{ inputs.image_name }}"
+          VERSION="${{ needs.prepare.outputs.version }}"
+          PLATFORMS="${{ inputs.platforms }}"
+          INDEX=$(docker buildx imagetools inspect "${IMAGE}:${VERSION}" --format '{{json .Manifest}}')
+
+          mkdir -p sbom
+          for PLATFORM in ${PLATFORMS//,/ }; do
+            SUFFIX="${PLATFORM//\//-}"
+            DIGEST=$(jq -r --arg os "${PLATFORM%%/*}" --arg arch "${PLATFORM#*/}" \
+              '.manifests[] | select(.platform.os == $os and .platform.architecture == $arch) | .digest' <<< "${INDEX}")
+            BASE="sbom/${{ inputs.image_name }}-${VERSION}-${SUFFIX}"
+            syft scan "registry:${IMAGE}@${DIGEST}" \
+              --source-name "${IMAGE}" --source-version "${VERSION}" \
+              -o "cyclonedx-json=${BASE}.cdx.json" \
+              -o "spdx-json=${BASE}.spdx.json"
+            echo "${DIGEST}" > "${BASE}.digest"
+          done
+
+      - name: Attest CycloneDX SBOMs with cosign (keyless)
+        if: inputs.sign
+        run: |
+          IMAGE="ghcr.io/${{ github.repository_owner }}/${{ inputs.image_name }}"
+          ALIAS="${{ inputs.alias_image_name }}"
+          for CDX in sbom/*.cdx.json; do
+            DIGEST=$(cat "${CDX%.cdx.json}.digest")
+            cosign attest --yes --type cyclonedx --predicate "${CDX}" "${IMAGE}@${DIGEST}"
+            if [[ -n "${ALIAS}" ]]; then
+              cosign attest --yes --type cyclonedx --predicate "${CDX}" "ghcr.io/${{ github.repository_owner }}/${ALIAS}@${DIGEST}"
+            fi
+          done
+
+      - name: Upload SBOMs
+        uses: actions/upload-artifact@v7
+        with:
+          name: sbom-${{ inputs.image_name }}
+          path: sbom/*.json
+          retention-days: 7
+
+      # Provenance goes to the public Sigstore log like signatures, so it follows inputs.sign.
+      - name: Attest manifest index
+        if: inputs.sign
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/${{ inputs.image_name }}
+          subject-digest: ${{ steps.digest.outputs.digest }}
+          push-to-registry: true
+
+      - name: Attest manifest index (unsuffixed alias)
+        if: inputs.sign && inputs.alias_image_name != ''
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/${{ inputs.alias_image_name }}
+          subject-digest: ${{ steps.digest.outputs.digest }}
+          push-to-registry: true
+
+      - name: Set output
+        id: result
+        run: |
+          IMAGE="ghcr.io/${{ github.repository_owner }}/${{ inputs.image_name }}"
+          VERSION="${{ needs.prepare.outputs.version }}"
+          echo "image=${IMAGE}:${VERSION}" >> $GITHUB_OUTPUT
+          echo "digest=${{ steps.digest.outputs.digest }}" >> $GITHUB_OUTPUT

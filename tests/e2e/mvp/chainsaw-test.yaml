@@ -1,0 +1,243 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: mvp
+spec:
+  # Prerequisites and the operator come from setup.sh.
+  namespace: foreman-e2e
+  steps:
+    - name: Create Foreman and Smart Proxy
+      try:
+        - apply:
+            file: resources.yaml
+
+    - name: Foreman migrates and runs
+      try:
+        - assert:
+            resource:
+              apiVersion: platform.theforeman.org/v1alpha1
+              kind: Foreman
+              metadata:
+                name: foreman
+              # A phase from before the last change would pass too early.
+              (status.observedGeneration == metadata.generation): true
+              status:
+                phase: Running
+      catch:
+        - describe:
+            apiVersion: platform.theforeman.org/v1alpha1
+            kind: Foreman
+        - podLogs:
+            selector: app.kubernetes.io/instance=foreman
+            tail: 50
+
+    - name: Puma has no TCP listener, only the frontend ports are open
+      try:
+        - script:
+            content: |
+              set -e
+              # Listening sockets have state 0A; the local port is the hex part after the colon.
+              kubectl -n foreman-e2e exec deploy/foreman-web -c foreman -- cat /proc/net/tcp /proc/net/tcp6 \
+                | awk '$4 == "0A" { split($2, a, ":"); print a[2] }' | sort -u \
+                | while read -r hex; do printf '%d\n' "0x${hex}"; done | sort -n | tr '\n' ' '
+            check:
+              ($stdout): "8080 8443 "
+
+    - name: The frontend container serves Foreman over the Gateway
+      try:
+        - script:
+            content: |
+              curl -sfk --retry 10 --retry-delay 5 --retry-all-errors https://e2e-openvox.lnxlabs.de/api/v2/ping
+            check:
+              ($error == null): true
+
+    - name: Only the enabled plugin and its dependencies are loaded
+      try:
+        - script:
+            content: |
+              password="$(kubectl -n foreman-e2e get secret foreman-secrets -o jsonpath='{.data.admin-password}' | base64 -d)"
+              # foreman_discovery and the other catalog plugins are installed but must stay off.
+              curl -sfk -u "admin:${password}" "https://e2e-openvox.lnxlabs.de/api/v2/plugins?per_page=100" \
+                | jq -r '.results[].name' | grep '^foreman' | LC_ALL=C sort | tr '\n' ' '
+            check:
+              ($stdout): "foreman-tasks foreman_ansible foreman_remote_execution "
+
+    - name: Smart Proxy is registered with its features
+      try:
+        - assert:
+            resource:
+              apiVersion: platform.theforeman.org/v1alpha1
+              kind: SmartProxy
+              metadata:
+                name: pxe
+              status:
+                phase: Running
+                (foremanID > `0`): true
+        - script:
+            content: |
+              password="$(kubectl -n foreman-e2e get secret foreman-secrets -o jsonpath='{.data.admin-password}' | base64 -d)"
+              curl -sfk -u "admin:${password}" "https://e2e-openvox.lnxlabs.de/api/smart_proxies?search=name%3Dpxe" \
+                | jq -r '.results[0].features[].name' | LC_ALL=C sort | tr '\n' ' '
+            check:
+              ($stdout): "BMC DHCP DNS Logs TFTP Templates "
+      catch:
+        - describe:
+            apiVersion: platform.theforeman.org/v1alpha1
+            kind: SmartProxy
+        - podLogs:
+            selector: app.kubernetes.io/instance=pxe
+            tail: 50
+
+    - name: DHCP reservation through the proxy reaches a client on the fake VLAN
+      try:
+        - script:
+            timeout: 3m
+            content: |
+              set -e
+              mac="$(kubectl -n foreman-e2e exec pxe-client -- cat /sys/class/net/net1/address | tr -d '\r')"
+              # Foreman's own client certificate, as Foreman would call the proxy.
+              tls="--cert /etc/foreman/tls/tls.crt --key /etc/foreman/tls/tls.key --cacert /etc/foreman/tls/ca.crt"
+              # The volume keeps the reservation of an earlier run, which would reject a new one.
+              kubectl -n foreman-e2e exec deploy/foreman-web -c foreman -- curl -s ${tls} -o /dev/null \
+                -X DELETE "https://pxe.foreman-e2e.svc:8443/dhcp/10.99.0.0/mac/${mac}"
+              kubectl -n foreman-e2e exec deploy/foreman-web -c foreman -- curl -sf ${tls} \
+                -X POST https://pxe.foreman-e2e.svc:8443/dhcp/10.99.0.0 \
+                -d mac="${mac}" -d ip=10.99.0.50 -d hostname=host1.lab.test -d filename=pxelinux.0 -d nextServer=10.99.0.10 >/dev/null
+              sleep 3
+              kubectl -n foreman-e2e exec pxe-client -- sh -c \
+                'ip addr flush dev net1; udhcpc -i net1 -n -q -f -t 5 -s /bin/true 2>&1 | grep "lease of"'
+            check:
+              (contains($stdout, 'lease of 10.99.0.50 obtained from 10.99.0.10')): true
+
+    - name: TFTP serves the boot loader on the fake VLAN
+      try:
+        - script:
+            content: |
+              kubectl -n foreman-e2e exec pxe-client -- sh -c \
+                'ip addr add 10.99.0.50/24 dev net1 2>/dev/null; tftp -g -r pxelinux.0 -l /tmp/pxelinux.0 10.99.0.10 && wc -c < /tmp/pxelinux.0'
+            check:
+              (to_number(trim_space($stdout)) > `1000`): true
+
+    - name: DNS record through the proxy lands in BIND
+      try:
+        - script:
+            content: |
+              set -e
+              kubectl -n foreman-e2e exec deploy/foreman-web -c foreman -- curl -sf \
+                --cert /etc/foreman/tls/tls.crt --key /etc/foreman/tls/tls.key --cacert /etc/foreman/tls/ca.crt \
+                -X POST https://pxe.foreman-e2e.svc:8443/dns/ \
+                -d fqdn=host1.lab.test -d value=10.99.0.50 -d type=A >/dev/null
+              kubectl -n foreman-e2e exec deploy/pxe -c proxy -- dig +short @bind.foreman-e2e.svc host1.lab.test A
+            check:
+              (trim_space($stdout)): 10.99.0.50
+
+    - name: DHCP state on the volume survives a new pod
+      try:
+        - script:
+            timeout: 4m
+            content: |
+              set -e
+              mac="$(kubectl -n foreman-e2e exec pxe-client -- cat /sys/class/net/net1/address | tr -d '\r')"
+              old="$(kubectl -n foreman-e2e get pods -l app.kubernetes.io/instance=pxe -o name)"
+              kubectl -n foreman-e2e rollout restart deploy/pxe >/dev/null
+              # rollout status can return before the Recreate strategy has replaced the pod, so
+              # wait for the old pod to go and the new one to become ready.
+              kubectl -n foreman-e2e wait --for=delete ${old} --timeout=2m >/dev/null
+              kubectl -n foreman-e2e rollout status deploy/pxe --timeout=3m >/dev/null
+              kubectl -n foreman-e2e wait --for=condition=Ready pod -l app.kubernetes.io/instance=pxe --timeout=3m >/dev/null
+              kubectl -n foreman-e2e exec deploy/pxe -c proxy -- grep -c " ${mac} 10.99.0.50 " /var/lib/foreman-proxy/dhcp/dnsmasq.leases
+              kubectl -n foreman-e2e exec deploy/foreman-web -c foreman -- curl -sf \
+                --cert /etc/foreman/tls/tls.crt --key /etc/foreman/tls/tls.key --cacert /etc/foreman/tls/ca.crt \
+                "https://pxe.foreman-e2e.svc:8443/dhcp/10.99.0.0/mac/${mac}" | jq -r .ip
+            check:
+              (trim_space($stdout)): "1\n10.99.0.50"
+      catch:
+        - podLogs:
+            selector: app.kubernetes.io/instance=pxe
+            tail: 50
+
+    - name: The BMC provider finds ipmitool
+      try:
+        - script:
+            content: |
+              kubectl -n foreman-e2e exec deploy/pxe -c proxy -- ipmitool -V
+            check:
+              (starts_with($stdout, 'ipmitool version')): true
+
+    - name: The proxy probes complete the TLS handshake
+      try:
+        - script:
+            content: |
+              # Probes run every 10 seconds, so a minute of logs covers several of them.
+              kubectl -n foreman-e2e logs deploy/pxe -c proxy --since=60s | grep -c SSL_accept || true
+            check:
+              (trim_space($stdout)): "0"
+
+    - name: The Execution proxy is registered with its features
+      try:
+        - assert:
+            resource:
+              apiVersion: platform.theforeman.org/v1alpha1
+              kind: SmartProxy
+              metadata:
+                name: rex
+              status:
+                phase: Running
+                (foremanID > `0`): true
+        - script:
+            content: |
+              password="$(kubectl -n foreman-e2e get secret foreman-secrets -o jsonpath='{.data.admin-password}' | base64 -d)"
+              curl -sfk -u "admin:${password}" "https://e2e-openvox.lnxlabs.de/api/smart_proxies?search=name%3Drex" \
+                | jq -r '.results[0].features[].name' | LC_ALL=C sort | tr '\n' ' '
+            check:
+              ($stdout): "Ansible Dynflow Logs Script "
+      catch:
+        - describe:
+            apiVersion: platform.theforeman.org/v1alpha1
+            kind: SmartProxy
+            name: rex
+        - podLogs:
+            selector: app.kubernetes.io/instance=rex
+            tail: 50
+
+    - name: A Remote Execution job runs on the target over SSH
+      try:
+        - script:
+            timeout: 6m
+            content: |
+              ./run-job.sh "Run Command - Script Default" "cat /etc/alpine-release"
+            check:
+              (starts_with($stdout, 'succeeded')): true
+              (contains($stdout, '3.22')): true
+      catch:
+        - podLogs:
+            selector: app.kubernetes.io/instance=rex
+            tail: 80
+
+    - name: An Ansible job runs on the target
+      try:
+        - script:
+            timeout: 6m
+            content: |
+              ./run-job.sh "Run Command - Ansible Default" "cat /etc/alpine-release"
+            check:
+              (starts_with($stdout, 'succeeded')): true
+              (contains($stdout, '3.22')): true
+      catch:
+        - podLogs:
+            selector: app.kubernetes.io/instance=rex
+            tail: 80
+
+    - name: Deleting the Smart Proxy removes it from Foreman
+      try:
+        - delete:
+            ref:
+              apiVersion: platform.theforeman.org/v1alpha1
+              kind: SmartProxy
+              name: pxe
+        - script:
+            content: |
+              password="$(kubectl -n foreman-e2e get secret foreman-secrets -o jsonpath='{.data.admin-password}' | base64 -d)"
+              curl -sfk -u "admin:${password}" "https://e2e-openvox.lnxlabs.de/api/smart_proxies?search=name%3Dpxe" | jq '.subtotal'
+            check:
+              (trim_space($stdout)): "0"

@@ -27,8 +27,14 @@ jobs:
       - name: Vet
         run: go vet ./...
 
-      - name: Test
-        run: go test ./...
+      - name: Test with coverage gate
+        run: make cover
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage
+          path: cover.out
 
       - name: Check generated files
         run: make check-manifests
@@ -39,6 +45,7 @@ jobs:
       - name: Lint
         uses: golangci/golangci-lint-action@v9
         with:
+          # renovate: datasource=github-releases depName=golangci/golangci-lint
           version: "v2.15.0"
 
   helm:
@@ -50,8 +57,14 @@ jobs:
       - name: Set up Helm
         uses: azure/setup-helm@v5
 
+      - name: Install helm-unittest
+        run: helm plugin install --verify=false https://github.com/helm-unittest/helm-unittest
+
       - name: Lint charts
         run: make helm-lint
+
+      - name: Unit test charts
+        run: make helm-unittest
 
   docs:
     runs-on: ubuntu-latest

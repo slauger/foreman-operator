@@ -1,0 +1,163 @@
+# Fake provisioning VLAN: a node-local Linux bridge without uplink, attached through Multus.
+# Frames stay on the node, so DHCP cannot leak into the hosting provider's network.
+apiVersion: v1
+kind: List
+items:
+  - apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: foreman-pxe-lab
+      labels:
+        # NET_ADMIN is only allowed at the privileged level.
+        pod-security.kubernetes.io/enforce: privileged
+        pod-security.kubernetes.io/warn: restricted
+
+  - apiVersion: k8s.cni.cncf.io/v1
+    kind: NetworkAttachmentDefinition
+    metadata:
+      name: pxe-server
+      namespace: foreman-pxe-lab
+    spec:
+      config: |
+        {
+          "cniVersion": "1.0.0",
+          "name": "pxe-lab-server",
+          "type": "bridge",
+          "bridge": "pxe0",
+          "isGateway": false,
+          "ipMasq": false,
+          "ipam": {
+            "type": "host-local",
+            "ranges": [[{"subnet": "10.99.0.0/24", "rangeStart": "10.99.0.10", "rangeEnd": "10.99.0.10"}]]
+          }
+        }
+
+  # Clients start without an address, like a machine before PXE.
+  - apiVersion: k8s.cni.cncf.io/v1
+    kind: NetworkAttachmentDefinition
+    metadata:
+      name: pxe-client
+      namespace: foreman-pxe-lab
+    spec:
+      config: |
+        {
+          "cniVersion": "1.0.0",
+          "name": "pxe-lab-client",
+          "type": "bridge",
+          "bridge": "pxe0",
+          "isGateway": false,
+          "ipMasq": false,
+          "ipam": {}
+        }
+
+  - apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: dnsmasq
+      namespace: foreman-pxe-lab
+    data:
+      dnsmasq.conf: |
+        port=0
+        interface=net1
+        bind-interfaces
+        user=dnsmasq
+        pid-file=
+        keep-in-foreground
+        log-facility=-
+        log-dhcp
+        dhcp-range=10.99.0.100,10.99.0.150,255.255.255.0,1h
+        dhcp-leasefile=/var/lib/dnsmasq/dhcp.leases
+        # Layout expected by smart_proxy_dhcp_dnsmasq (target_dir).
+        dhcp-hostsfile=/var/lib/foreman-proxy/dhcp/dhcphosts
+        dhcp-optsfile=/var/lib/foreman-proxy/dhcp/dhcpopts.conf
+        dhcp-boot=pxelinux.0,pxe-server,10.99.0.10
+        enable-tftp
+        tftp-root=/srv/tftp
+
+  - apiVersion: v1
+    kind: Pod
+    metadata:
+      name: pxe-server
+      namespace: foreman-pxe-lab
+      annotations:
+        k8s.v1.cni.cncf.io/networks: pxe-server
+    spec:
+      containers:
+        - name: dnsmasq
+          image: registry.access.redhat.com/ubi9/ubi:latest
+          # The package install needs the default capabilities, dnsmasq itself runs with the
+          # bounding set reduced by setpriv to what it actually uses. The shell stays as a
+          # supervisor and turns the proxy's reload trigger file into a SIGHUP, so the proxy
+          # needs neither a shared process namespace nor CAP_KILL.
+          command:
+            - /bin/bash
+            - -ec
+            - |
+              dnf install -y -q --setopt=install_weak_deps=0 dnsmasq util-linux-core
+              mkdir -p /srv/tftp /var/lib/dnsmasq /var/lib/foreman-proxy/dhcp/dhcphosts
+              touch /var/lib/foreman-proxy/dhcp/dhcpopts.conf
+              chgrp -R 0 /var/lib/foreman-proxy/dhcp
+              chmod -R g+w /var/lib/foreman-proxy/dhcp
+              echo "hello from the pxe lab" > /srv/tftp/pxelinux.0
+              setpriv --bounding-set=-all,+net_admin,+net_raw,+net_bind_service,+setuid,+setgid \
+                --inh-caps=-all dnsmasq --conf-file=/etc/dnsmasq-lab/dnsmasq.conf &
+              pid=$!
+              trap 'kill -TERM "${pid}"' TERM INT
+              while kill -0 "${pid}" 2>/dev/null; do
+                if [ -e /var/lib/foreman-proxy/dhcp/.reload ]; then
+                  rm -f /var/lib/foreman-proxy/dhcp/.reload
+                  kill -HUP "${pid}"
+                  echo "supervisor: reloaded dnsmasq"
+                fi
+                sleep 1
+              done
+              wait "${pid}"
+          securityContext:
+            runAsUser: 0
+            capabilities:
+              add: [NET_ADMIN, NET_RAW]
+          volumeMounts:
+            - name: config
+              mountPath: /etc/dnsmasq-lab
+            - name: dhcp
+              mountPath: /var/lib/foreman-proxy/dhcp
+        # Stands in for the Smart Proxy: unprivileged, writes files like the dnsmasq plugin.
+        - name: proxy
+          image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+          command: [sleep, infinity]
+          securityContext:
+            runAsUser: 1000700000
+            runAsGroup: 0
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: dhcp
+              mountPath: /var/lib/foreman-proxy/dhcp
+      volumes:
+        - name: config
+          configMap:
+            name: dnsmasq
+        - name: dhcp
+          emptyDir: {}
+
+  - apiVersion: v1
+    kind: Pod
+    metadata:
+      name: pxe-client
+      namespace: foreman-pxe-lab
+      annotations:
+        k8s.v1.cni.cncf.io/networks: pxe-client
+    spec:
+      containers:
+        - name: client
+          image: docker.io/library/busybox:1.37
+          command: [sleep, infinity]
+          securityContext:
+            runAsUser: 0
+            capabilities:
+              drop: [ALL]
+              add: [NET_ADMIN, NET_RAW]

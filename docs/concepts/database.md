@@ -1,7 +1,7 @@
 # Database
 
 !!! note "Status"
-    The chart exists and renders. It has not been tested on a cluster. The `Foreman` controller does not exist yet.
+    Implemented. The chart and the `Foreman` controller are used by the E2E test on a k3s cluster, where migration and web are verified.
 
 PostgreSQL is provided by [CloudNativePG](https://cloudnative-pg.io/). A `Foreman` references a `Cluster` in its namespace.
 
@@ -25,7 +25,7 @@ spec:
       name: foreman-db
 ```
 
-The operator connects to the `<name>-rw` Service and reads credentials from the `<name>-app` Secret. `credentialsSecretRef` overrides the Secret name.
+The operator reads the `uri` key of the `<name>-app` Secret, which CloudNativePG fills with a connection string for the `<name>-rw` Service, and passes it to Foreman with `sslmode=require`. `credentialsSecretRef` overrides the Secret name. Until the Secret exists, the `Foreman` stays in phase `Pending` with reason `WaitingForDatabase`.
 
 ## Decisions
 
@@ -41,4 +41,4 @@ Use CloudNativePG continuous backups and `ScheduledBackup`. A restore also needs
 
 ## Valkey
 
-Foreman also needs Valkey for the Rails cache and for Dynflow. The operator consumes an existing instance through `spec.valkey`. `foremanctl` uses database 4 for the cache and 6 for Dynflow.
+Foreman also needs Valkey for the Rails cache and for Dynflow, which makes it a required dependency. The operator consumes an existing instance through `spec.valkey` and does not deploy one. Like `foremanctl`, it uses database 4 for the cache and 6 for Dynflow. Authentication and TLS to Valkey are not supported yet.

@@ -48,6 +48,9 @@ const (
 // +kubebuilder:validation:XValidation:rule="self.profile != 'Provisioning' || (!has(self.features.remoteExecutionSSH) && !has(self.features.ansible))",message="the Provisioning profile does not support remoteExecutionSSH or ansible"
 // +kubebuilder:validation:XValidation:rule="!(has(self.features.dhcp) && self.features.dhcp.provider == 'dnsmasq') || (has(self.networks) && size(self.networks) > 0)",message="the dnsmasq provider requires at least one network"
 // +kubebuilder:validation:XValidation:rule="!(has(self.features.dhcp) && self.features.dhcp.provider == 'dnsmasq') || size(self.features.dhcp.subnets) == 1",message="the dnsmasq provider supports exactly one subnet per SmartProxy"
+// +kubebuilder:validation:XValidation:rule="!(has(self.features.dhcp) && self.features.dhcp.provider == 'dnsmasq') || self.features.dhcp.subnets.all(s, has(s.range))",message="the dnsmasq provider requires a range"
+// +kubebuilder:validation:XValidation:rule="!has(self.features.tftp) || (has(self.networks) && size(self.networks) > 0)",message="tftp requires a network, since dnsmasq serves TFTP only on the provisioning network"
+// +kubebuilder:validation:XValidation:rule="!has(self.features.ansible) || has(self.features.remoteExecutionSSH)",message="ansible requires remoteExecutionSSH, whose SSH key it uses"
 type SmartProxySpec struct {
 	// ForemanRef names the Foreman this proxy registers with.
 	// +kubebuilder:validation:MinLength=1
@@ -67,18 +70,17 @@ type SmartProxySpec struct {
 	// TLS selects the source of the server and client certificates.
 	TLS TLSSpec `json:"tls"`
 
-	// OAuthSecretRef names the Secret with "consumer-key" and "consumer-secret" for registration.
-	// +kubebuilder:validation:MinLength=1
-	OAuthSecretRef string `json:"oauthSecretRef"`
-
-	// Networks attaches the pod to secondary networks through Multus.
+	// Networks attaches the pod to a secondary network through Multus. dnsmasq assigns the
+	// address and serves DHCP and TFTP on it. Only one network is supported.
+	// +kubebuilder:validation:MaxItems=1
 	// +optional
 	Networks []SmartProxyNetwork `json:"networks,omitempty"`
 
 	// Features configures the enabled Smart Proxy features.
 	Features SmartProxyFeatures `json:"features"`
 
-	// Storage configures the volume for leases and boot files.
+	// Storage configures a persistent volume for the TFTP root and the DHCP reservations and
+	// leases. Without it, both are lost when the pod is recreated.
 	// +optional
 	Storage *SmartProxyStorage `json:"storage,omitempty"`
 
@@ -138,6 +140,9 @@ type TFTPFeature struct {
 	// ServerName overrides the TFTP server name announced to hosts.
 	// +optional
 	ServerName string `json:"serverName,omitempty"`
+	// BootFiles selects the image whose PXE boot loaders are copied into the TFTP root.
+	// +optional
+	BootFiles ImageSpec `json:"bootFiles,omitempty"`
 }
 
 // TemplatesFeature configures the template endpoint for hosts being built.
@@ -148,13 +153,13 @@ type TemplatesFeature struct {
 }
 
 // DHCPProvider selects the Smart Proxy DHCP provider.
-// +kubebuilder:validation:Enum=dnsmasq;infoblox
+// Only dnsmasq is in the image.
+// +kubebuilder:validation:Enum=dnsmasq
 type DHCPProvider string
 
 // DHCP providers.
 const (
-	DHCPProviderDnsmasq  DHCPProvider = "dnsmasq"
-	DHCPProviderInfoblox DHCPProvider = "infoblox"
+	DHCPProviderDnsmasq DHCPProvider = "dnsmasq"
 )
 
 // DHCPFeature configures DHCP.
@@ -173,15 +178,22 @@ type DHCPSubnet struct {
 	// +kubebuilder:validation:MinLength=1
 	Network string `json:"network"`
 
-	// Range is the dynamic range as "first-last".
+	// Range is the dynamic range as "first-last". Without it, only reserved hosts get an address.
+	// +kubebuilder:validation:Pattern=`^[0-9.]+-[0-9.]+$`
 	// +optional
 	Range string `json:"range,omitempty"`
+	// Gateway is announced as the default router. Without it, no router is announced.
+	// +optional
+	Gateway string `json:"gateway,omitempty"`
+	// DNSServers are announced to hosts.
+	// +optional
+	DNSServers []string `json:"dnsServers,omitempty"`
 }
 
 // DNSFeature configures DNS.
 type DNSFeature struct {
-	// Provider selects the DNS provider.
-	// +kubebuilder:validation:Enum=dns_nsupdate;dns_nsupdate_gss
+	// Provider selects the DNS provider. Only dns_nsupdate is supported, GSS-TSIG needs a keytab.
+	// +kubebuilder:validation:Enum=dns_nsupdate
 	// +kubebuilder:default=dns_nsupdate
 	// +optional
 	Provider string `json:"provider,omitempty"`
@@ -198,7 +210,8 @@ type DNSFeature struct {
 // BMCFeature configures power management.
 type BMCFeature struct {
 	// DefaultProvider selects the BMC provider.
-	// +kubebuilder:validation:Enum=ipmitool;freeipmi;redfish;shell;ssh
+	// The image ships ipmitool; freeipmi is not available.
+	// +kubebuilder:validation:Enum=ipmitool;redfish;shell;ssh
 	// +optional
 	DefaultProvider string `json:"defaultProvider,omitempty"`
 }
@@ -206,9 +219,11 @@ type BMCFeature struct {
 // HTTPBootFeature enables UEFI HTTP Boot.
 type HTTPBootFeature struct{}
 
-// RemoteExecutionSSHFeature configures Remote Execution over SSH.
+// RemoteExecutionSSHFeature configures Remote Execution over SSH. It also enables Dynflow on
+// the proxy, which runs the jobs.
 type RemoteExecutionSSHFeature struct {
-	// SSHKeySecretRef names the Secret with "id_rsa" and "id_rsa.pub".
+	// SSHKeySecretRef names the Secret with "id_rsa" and "id_rsa.pub". The proxy logs in to
+	// hosts with this key, so the public key must be authorized on them.
 	// +kubebuilder:validation:MinLength=1
 	SSHKeySecretRef string `json:"sshKeySecretRef"`
 }
@@ -216,7 +231,7 @@ type RemoteExecutionSSHFeature struct {
 // AnsibleFeature enables the Ansible feature.
 type AnsibleFeature struct{}
 
-// SmartProxyStorage configures the volume for leases and boot files.
+// SmartProxyStorage configures the persistent volume for the TFTP root and the DHCP state.
 type SmartProxyStorage struct {
 	// Size of the volume.
 	Size resource.Quantity `json:"size"`
@@ -239,6 +254,10 @@ type SmartProxyStatus struct {
 	// ForemanID is the identifier assigned by Foreman on registration.
 	// +optional
 	ForemanID int64 `json:"foremanID,omitempty"`
+	// RegisteredChecksum identifies the URL, configuration, and certificate whose features were
+	// last refreshed in Foreman. A change triggers a refresh.
+	// +optional
+	RegisteredChecksum string `json:"registeredChecksum,omitempty"`
 
 	// Conditions represent the latest observations.
 	// +listType=map

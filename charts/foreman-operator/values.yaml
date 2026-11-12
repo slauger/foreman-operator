@@ -1,0 +1,104 @@
+# -- Image of the operator.
+image:
+  # @param image.repository Operator image repository
+  repository: ghcr.io/slauger/foreman-operator
+  # @param image.tag Operator image tag (defaults to the chart appVersion)
+  tag: ""
+  # @param image.pullPolicy Image pull policy
+  pullPolicy: IfNotPresent
+
+# @param imagePullSecrets Image pull secrets for private registries
+imagePullSecrets: []
+# @param nameOverride Override the chart name
+nameOverride: ""
+# @param fullnameOverride Override the fully qualified app name
+fullnameOverride: ""
+
+operator:
+  # @param operator.defaultImageTag Tag of the Foreman, frontend, Smart Proxy, and boot-files images used when a resource names none (empty uses the chart appVersion)
+  defaultImageTag: ""
+  # @param operator.watchNamespace Restrict the operator to one namespace (empty watches all namespaces)
+  watchNamespace: ""
+  # @param operator.leaderElection Enable leader election (required for more than one replica)
+  leaderElection: true
+  # @param operator.logLevel Log level: debug, info, or error
+  logLevel: info
+  # @param operator.metricsSecure Serve metrics over HTTPS with authentication and authorization
+  metricsSecure: false
+
+# @param replicaCount Number of operator replicas
+replicaCount: 1
+
+# @param podAnnotations Additional pod annotations
+podAnnotations: {}
+# @param podLabels Additional pod labels
+podLabels: {}
+# @param extraEnv Additional environment variables as key-value pairs
+extraEnv: {}
+# @param extraEnvSecret Existing Secret whose keys become environment variables
+extraEnvSecret: ""
+
+# @param nodeSelector Node selector for pod assignment
+nodeSelector: {}
+# @param tolerations Tolerations for pod assignment
+tolerations: []
+# @param affinity Affinity and anti-affinity rules
+affinity: {}
+# @param topologySpreadConstraints Topology spread constraints
+topologySpreadConstraints: []
+# @param priorityClassName Priority class name
+priorityClassName: ""
+
+# @param resources Container resource requests and limits
+resources:
+  requests:
+    cpu: 10m
+    memory: 64Mi
+  limits:
+    memory: 256Mi
+# @param updateStrategy Deployment update strategy
+updateStrategy: {}
+# @param terminationGracePeriodSeconds Termination grace period
+terminationGracePeriodSeconds: 10
+
+podDisruptionBudget:
+  # @param podDisruptionBudget.enabled Enable a PodDisruptionBudget
+  enabled: false
+  # @param podDisruptionBudget.minAvailable Minimum available pods
+  minAvailable: ""
+  # @param podDisruptionBudget.maxUnavailable Maximum unavailable pods
+  maxUnavailable: 1
+
+serviceAccount:
+  # @param serviceAccount.create Create a service account
+  create: true
+  # @param serviceAccount.name Service account name (generated if empty)
+  name: ""
+  # @param serviceAccount.annotations Service account annotations
+  annotations: {}
+
+# @param livenessProbe Liveness probe configuration
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: probes
+  initialDelaySeconds: 15
+  periodSeconds: 20
+# @param readinessProbe Readiness probe configuration
+readinessProbe:
+  httpGet:
+    path: /readyz
+    port: probes
+  initialDelaySeconds: 5
+  periodSeconds: 10
+# @param startupProbe Startup probe configuration
+startupProbe: {}
+
+# @param extraVolumes Additional volumes
+extraVolumes: []
+# @param extraVolumeMounts Additional volume mounts
+extraVolumeMounts: []
+# @param extraContainers Additional sidecar containers
+extraContainers: []
+# @param extraInitContainers Additional init containers
+extraInitContainers: []

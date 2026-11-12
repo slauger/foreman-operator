@@ -1,0 +1,262 @@
+# Everything a Foreman needs that the operator does not manage. Applied by setup.sh.
+apiVersion: v1
+kind: List
+items:
+  # Internal CA for Foreman, frontend client certificates, and Smart Proxies.
+  - apiVersion: cert-manager.io/v1
+    kind: Issuer
+    metadata:
+      name: selfsigned
+    spec:
+      selfSigned: {}
+  - apiVersion: cert-manager.io/v1
+    kind: Certificate
+    metadata:
+      name: foreman-internal-ca
+    spec:
+      isCA: true
+      commonName: foreman-e2e-ca
+      secretName: foreman-internal-ca
+      duration: 175200h
+      privateKey:
+        algorithm: RSA
+        size: 4096
+        rotationPolicy: Never
+      issuerRef:
+        name: selfsigned
+  - apiVersion: cert-manager.io/v1
+    kind: Issuer
+    metadata:
+      name: foreman-internal-ca
+    spec:
+      ca:
+        secretName: foreman-internal-ca
+
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: valkey
+    spec:
+      selector:
+        app: valkey
+      ports:
+        - port: 6379
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: valkey
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: valkey
+      template:
+        metadata:
+          labels:
+            app: valkey
+        spec:
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: valkey
+              image: quay.io/sclorg/valkey-8-c10s:latest
+              ports:
+                - containerPort: 6379
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: [ALL]
+              resources:
+                requests:
+                  cpu: 20m
+                  memory: 64Mi
+                limits:
+                  memory: 256Mi
+              volumeMounts:
+                - name: data
+                  mountPath: /var/lib/valkey/data
+          volumes:
+            - name: data
+              emptyDir: {}
+
+  # Fake provisioning VLAN: a node-local bridge without uplink. The proxy assigns its own
+  # address, clients get theirs through DHCP.
+  - apiVersion: k8s.cni.cncf.io/v1
+    kind: NetworkAttachmentDefinition
+    metadata:
+      name: pxe
+    spec:
+      config: |
+        {
+          "cniVersion": "1.0.0",
+          "name": "foreman-e2e-pxe",
+          "type": "bridge",
+          "bridge": "pxe0",
+          "isGateway": false,
+          "ipMasq": false,
+          "ipam": {}
+        }
+  - apiVersion: v1
+    kind: Pod
+    metadata:
+      name: pxe-client
+      annotations:
+        k8s.v1.cni.cncf.io/networks: pxe
+    spec:
+      containers:
+        - name: client
+          image: docker.io/library/busybox:1.37
+          command: [sleep, infinity]
+          securityContext:
+            runAsUser: 0
+            capabilities:
+              drop: [ALL]
+              add: [NET_ADMIN, NET_RAW]
+
+  # Authoritative DNS server for the dns_nsupdate provider.
+  - apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: bind
+    data:
+      named.conf: |
+        include "/etc/bind/tsig/key";
+        options {
+          directory "/var/cache/bind";
+          listen-on { any; };
+          listen-on-v6 { none; };
+          recursion no;
+          allow-query { any; };
+        };
+        zone "lab.test" {
+          type primary;
+          file "/var/cache/bind/lab.test.zone";
+          allow-update { key "foreman"; };
+        };
+      lab.test.zone: |
+        $TTL 300
+        @ IN SOA ns.lab.test. hostmaster.lab.test. 1 3600 600 86400 300
+        @ IN NS ns.lab.test.
+        ns IN A 127.0.0.1
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: bind
+    spec:
+      selector:
+        app: bind
+      ports:
+        - name: dns-udp
+          port: 53
+          protocol: UDP
+        - name: dns-tcp
+          port: 53
+          protocol: TCP
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: bind
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: bind
+      template:
+        metadata:
+          labels:
+            app: bind
+        spec:
+          initContainers:
+            # BIND writes the journal next to the zone, so the zone lives on an emptyDir.
+            - name: zone
+              image: docker.io/internetsystemsconsortium/bind9:9.18
+              command: [sh, -c, "cp /etc/bind/zones/lab.test.zone /var/cache/bind/ && chown -R bind: /var/cache/bind"]
+              volumeMounts:
+                - name: config
+                  mountPath: /etc/bind/zones
+                - name: cache
+                  mountPath: /var/cache/bind
+          containers:
+            - name: named
+              image: docker.io/internetsystemsconsortium/bind9:9.18
+              command: [/usr/sbin/named, -g, -c, /etc/bind/conf/named.conf, -u, bind]
+              ports:
+                - containerPort: 53
+                  protocol: UDP
+                - containerPort: 53
+                  protocol: TCP
+              volumeMounts:
+                - name: config
+                  mountPath: /etc/bind/conf
+                - name: tsig
+                  mountPath: /etc/bind/tsig
+                - name: cache
+                  mountPath: /var/cache/bind
+          volumes:
+            - name: config
+              configMap:
+                name: bind
+            - name: tsig
+              secret:
+                secretName: tsig
+            - name: cache
+              emptyDir: {}
+
+  # SSH target for Remote Execution and Ansible jobs through the Execution proxy.
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: rex-target
+    spec:
+      selector:
+        app: rex-target
+      ports:
+        - name: ssh
+          port: 22
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: rex-target
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: rex-target
+      template:
+        metadata:
+          labels:
+            app: rex-target
+        spec:
+          containers:
+            - name: sshd
+              image: docker.io/library/alpine:3.22
+              command:
+                - sh
+                - -c
+                - |
+                  set -e
+                  apk add --no-cache openssh-server python3 >/dev/null
+                  ssh-keygen -A
+                  # A random password unlocks the account, key authentication stays the only way in.
+                  echo "root:$(head -c 24 /dev/urandom | base64)" | chpasswd
+                  install -d -m 0700 /root/.ssh
+                  install -m 0600 /keys/id_rsa.pub /root/.ssh/authorized_keys
+                  exec /usr/sbin/sshd -D -e
+              ports:
+                - name: ssh
+                  containerPort: 22
+              readinessProbe:
+                tcpSocket:
+                  port: ssh
+              volumeMounts:
+                - name: key
+                  mountPath: /keys
+          volumes:
+            - name: key
+              secret:
+                secretName: rex-ssh
+                items:
+                  - key: id_rsa.pub
+                    path: id_rsa.pub

@@ -1,9 +1,11 @@
-- 🌐 **Foreman on Kubernetes** - Web, Dynflow, and recurring tasks as native workloads, declared through CRDs
-- 🛰️ **Smart Proxy as a Resource** - Each proxy is one `SmartProxy` with a profile, registered in Foreman automatically
-- 🥾 **Bare-Metal Provisioning** - PXE, DHCP, TFTP, and DNS on direct L2 networks through Multus
-- 🔐 **cert-manager Integration** - Public certificates for clients, an internal PKI for mutual TLS
+- 🌐 **Foreman on Kubernetes** - Web and Dynflow as native workloads, declared through a `Foreman` resource
+- 🧱 **Migration before Rollout** - Writers are stopped, a Job migrates the database, then the new version rolls out
+- 🛰️ **Smart Proxy as a Resource** - Each proxy is one `SmartProxy`, registered in Foreman automatically through OAuth, for provisioning or for Remote Execution and Ansible over SSH
+- 🥾 **Bare-Metal Provisioning** - DHCP and TFTP through dnsmasq, DNS through nsupdate, on direct L2 networks through Multus
+- 🔐 **cert-manager Integration** - Server, client, and proxy certificates requested from cert-manager issuers
 - 🐘 **CloudNativePG** - PostgreSQL through CloudNativePG, with a chart for the cluster
-- 🔒 **Rootless and OpenShift Ready** - Own UBI 9 images, built for random UIDs
-- 🚪 **TLS Passthrough Frontend** - Client certificates work the same on k3s and OpenShift
-- 🔌 **Plugin Catalog** - Plugins, proxy plugins, and dependencies resolved by the operator
-- 🧭 **Katello Later** - Candlepin and Pulp are a separate, later stage
+- 🚪 **TLS Passthrough Frontend** - Apache with mutual TLS as a sidecar of Puma, behind a LoadBalancer, an OpenShift Route, or a Gateway API TLSRoute; Puma listens only on a Unix socket
+- 🔒 **Rootless Images** - Own UBI 9 images, built for random UIDs; only dnsmasq starts as root, with a minimal capability set
+- 🛡️ **Supply Chain Security** - BuildKit provenance and SBOMs, Renovate, and govulncheck; cosign signing once the repository is public
+- 🧩 **Plugin Catalog** - Remote Execution, Ansible, Discovery, Templates, Webhooks, and Puppet in the Foreman image, enabled per instance
+- 🧭 **Planned** - Recurring tasks, `Release` upgrades, OpenShift qualification, and Katello

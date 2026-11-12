@@ -1,56 +1,24 @@
 package v1alpha1
 
 import (
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
+	corev1 "k8s.io/api/core/v1"
 )
 
-// +kubebuilder:object:root=true
-// +kubebuilder:subresource:status
-// +kubebuilder:printcolumn:name="Foreman",type=string,JSONPath=`.spec.foremanRef`
-// +kubebuilder:printcolumn:name="Exposure",type=string,JSONPath=`.spec.exposure.type`
-// +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
-// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
-
-// Frontend is the Schema for the frontends API.
-// It terminates mutual TLS in the cluster and exposes Foreman to clients.
-type Frontend struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	Spec   FrontendSpec   `json:"spec,omitempty"`
-	Status FrontendStatus `json:"status,omitempty"`
-}
-
-// +kubebuilder:object:root=true
-
-// FrontendList contains a list of Frontend.
-type FrontendList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Frontend `json:"items"`
-}
-
-// FrontendSpec defines the desired state of Frontend.
-type FrontendSpec struct {
-	// ForemanRef names the Foreman served by this Frontend.
-	// +kubebuilder:validation:MinLength=1
-	ForemanRef string `json:"foremanRef"`
-
-	// Replicas is the number of frontend pods.
-	// +kubebuilder:default=2
-	// +kubebuilder:validation:Minimum=0
-	// +optional
-	Replicas *int32 `json:"replicas,omitempty"`
-
+// ForemanFrontendSpec configures the Apache container in each web pod. It terminates TLS and
+// mutual TLS and forwards to Puma over a Unix socket, so Puma is not reachable from the network.
+type ForemanFrontendSpec struct {
 	// Image selects the frontend container image.
 	// +optional
 	Image ImageSpec `json:"image,omitempty"`
 
+	// Resources sets the compute resources of the frontend container.
+	// +optional
+	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
+
 	// TLS selects the server certificate and the client CA.
 	TLS FrontendTLSSpec `json:"tls"`
 
-	// Exposure configures how clients reach this Frontend.
+	// Exposure configures how clients reach Foreman.
 	// +optional
 	Exposure FrontendExposureSpec `json:"exposure,omitempty"`
 }
@@ -78,42 +46,37 @@ const (
 	FrontendExposureClusterIP    FrontendExposureType = "ClusterIP"
 )
 
-// FrontendExposureSpec configures how clients reach a Frontend.
+// FrontendExposureSpec configures how clients reach Foreman.
 // +kubebuilder:validation:XValidation:rule="self.type != 'TLSRoute' || has(self.gatewayRef)",message="gatewayRef is required when type is TLSRoute"
 type FrontendExposureSpec struct {
 	// Type selects the exposure mechanism.
 	// +kubebuilder:default=Auto
 	Type FrontendExposureType `json:"type,omitempty"`
 
-	// GatewayRef names the Gateway for type TLSRoute.
+	// GatewayRef selects the Gateway and listeners for type TLSRoute.
 	// +optional
-	GatewayRef string `json:"gatewayRef,omitempty"`
+	GatewayRef *GatewayReference `json:"gatewayRef,omitempty"`
 
 	// Annotations are added to the created Service or Route.
 	// +optional
 	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
-// FrontendStatus defines the observed state of Frontend.
-type FrontendStatus struct {
-	// ObservedGeneration is the generation last processed by the controller.
-	// +optional
-	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+// GatewayReference selects a Gateway and its listeners.
+type GatewayReference struct {
+	// Name of the Gateway.
+	// +kubebuilder:validation:MinLength=1
+	Name string `json:"name"`
 
-	// Phase is the current lifecycle phase.
+	// Namespace of the Gateway. Defaults to the namespace of the Foreman.
 	// +optional
-	Phase string `json:"phase,omitempty"`
+	Namespace string `json:"namespace,omitempty"`
 
-	// Conditions represent the latest observations.
-	// +listType=map
-	// +listMapKey=type
+	// TLSSectionName is the listener with TLS passthrough for the TLSRoute.
 	// +optional
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
-}
+	TLSSectionName string `json:"tlsSectionName,omitempty"`
 
-func init() {
-	SchemeBuilder.Register(func(s *runtime.Scheme) error {
-		s.AddKnownTypes(GroupVersion, &Frontend{}, &FrontendList{})
-		return nil
-	})
+	// HTTPSectionName is the listener for the HTTPRoute used by installers.
+	// +optional
+	HTTPSectionName string `json:"httpSectionName,omitempty"`
 }

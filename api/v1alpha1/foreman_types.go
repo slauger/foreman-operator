@@ -13,7 +13,7 @@ import (
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
 // Foreman is the Schema for the foremen API.
-// It owns the Foreman web workload, optional Dynflow workloads, and recurring tasks.
+// It owns the Foreman web workload, the Dynflow workloads, and recurring tasks.
 type Foreman struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -45,9 +45,11 @@ type ForemanSpec struct {
 	// +optional
 	Image ImageSpec `json:"image,omitempty"`
 
-	// Plugins lists the Foreman plugins to enable. Each plugin must be present in the image.
+	// Plugins lists the Foreman plugins to enable from the catalog in the image. Their
+	// dependencies are enabled with them. Changing the list runs a migration.
+	// +listType=set
 	// +optional
-	Plugins []string `json:"plugins,omitempty"`
+	Plugins []ForemanPlugin `json:"plugins,omitempty"`
 
 	// TLS selects the source of the internal certificates.
 	TLS TLSSpec `json:"tls"`
@@ -58,18 +60,29 @@ type ForemanSpec struct {
 	// Valkey configures the Valkey connection.
 	Valkey ValkeySpec `json:"valkey"`
 
-	// EncryptionKeySecretRef names the Secret holding the key under "encryption-key".
-	// +kubebuilder:validation:MinLength=1
-	EncryptionKeySecretRef string `json:"encryptionKeySecretRef"`
+	// SecretsRef names the Secret with "encryption-key", "secret-key-base", "admin-password",
+	// "oauth-consumer-key", and "oauth-consumer-secret". The operator generates missing keys.
+	// Defaults to "<name>-secrets".
+	// +optional
+	SecretsRef string `json:"secretsRef,omitempty"`
 
 	// Web configures the web workload.
 	// +optional
 	Web ForemanWebSpec `json:"web,omitempty"`
 
-	// Dynflow enables the task workloads when set.
+	// Frontend configures TLS termination and exposure. It runs as a second container in
+	// every web pod.
+	Frontend ForemanFrontendSpec `json:"frontend"`
+
+	// Dynflow configures the task workloads. Foreman uses Dynflow as its ActiveJob backend.
+	// +kubebuilder:default={}
 	// +optional
-	Dynflow *DynflowSpec `json:"dynflow,omitempty"`
+	Dynflow DynflowSpec `json:"dynflow,omitempty"`
 }
+
+// ForemanPlugin names a plugin from the catalog in the Foreman image.
+// +kubebuilder:validation:Enum=foreman_ansible;foreman_discovery;foreman_puppet;foreman_remote_execution;foreman_templates;foreman_webhooks
+type ForemanPlugin string
 
 // DatabaseSpec selects the CloudNativePG cluster.
 type DatabaseSpec struct {
@@ -123,8 +136,8 @@ type DynflowSpec struct {
 	// +optional
 	WorkerReplicas *int32 `json:"workerReplicas,omitempty"`
 
-	// HostsQueueReplicas is the number of workers for the hosts queue.
-	// +kubebuilder:default=1
+	// HostsQueueReplicas is the number of workers for the hosts queue, used by Remote Execution.
+	// +kubebuilder:default=0
 	// +kubebuilder:validation:Minimum=0
 	// +optional
 	HostsQueueReplicas *int32 `json:"hostsQueueReplicas,omitempty"`
@@ -156,6 +169,9 @@ type ForemanStatus struct {
 	// Phase is the current lifecycle phase.
 	// +optional
 	Phase ForemanPhase `json:"phase,omitempty"`
+	// AppliedMigrationHash identifies the image and plugin set the database was last migrated for.
+	// +optional
+	AppliedMigrationHash string `json:"appliedMigrationHash,omitempty"`
 
 	// Conditions represent the latest observations.
 	// +listType=map

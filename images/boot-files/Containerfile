@@ -1,0 +1,37 @@
+# PXE boot loaders for the Foreman Smart Proxy TFTP root.
+# syslinux is GPL-2.0-or-later, GRUB 2 is GPL-3.0-or-later, shim is BSD-2-Clause-Patent.
+# An init container copies /boot-files into the shared TFTP root, e.g. with the default CMD.
+FROM quay.io/centos/centos:stream9 AS build
+
+RUN dnf install -y --nodocs --setopt=install_weak_deps=0 syslinux-tftpboot grub2-efi-x64 shim-x64 \
+    && dnf clean all
+
+# Layout expected by Foreman's TFTP feature: syslinux (BIOS) files in the root,
+# signed GRUB 2 and shim (UEFI, Secure Boot) under grub2/.
+RUN mkdir -p /boot-files/grub2 \
+    && cp -a /tftpboot/. /boot-files/ \
+    && cp /boot/efi/EFI/centos/grubx64.efi /boot/efi/EFI/centos/shimx64.efi /boot/efi/EFI/centos/mmx64.efi \
+        /boot-files/grub2/ \
+    && chmod -R a+rX,go-w /boot-files
+
+# The final image has no RPM database, so the SBOM cannot see these packages. PACKAGES names
+# each package with its source RPM. syslinux-tftpboot and shim-x64 ship no license file.
+RUN mkdir -p /licenses \
+    && rpm -q --qf '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH} %{SOURCERPM} %{LICENSE}\n' \
+        syslinux-tftpboot grub2-efi-x64 shim-x64 > /licenses/PACKAGES \
+    && cp /usr/share/licenses/grub2-common/COPYING /licenses/grub2-COPYING
+
+FROM registry.access.redhat.com/ubi9/ubi-minimal:9.8-1794186349
+
+LABEL org.opencontainers.image.title="foreman-boot-files" \
+      org.opencontainers.image.description="PXE boot loaders (syslinux, GRUB 2, shim) for the Foreman Smart Proxy TFTP root (experimental, unofficial)" \
+      org.opencontainers.image.source="https://github.com/slauger/foreman-operator" \
+      org.opencontainers.image.licenses="GPL-2.0-or-later AND GPL-3.0-or-later AND BSD-2-Clause-Patent"
+
+COPY --from=build /boot-files /boot-files
+COPY --from=build /licenses /usr/share/licenses/foreman-boot-files
+
+ENV HOME=/tmp
+
+USER 1001:0
+CMD ["/bin/cp", "-R", "/boot-files/.", "/var/lib/tftpboot/"]

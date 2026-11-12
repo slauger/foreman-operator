@@ -1,0 +1,50 @@
+suite: rbac
+templates:
+  - rbac.yaml
+tests:
+  - it: grants cluster-wide access by default
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: ClusterRole
+      - contains:
+          path: rules
+          content:
+            apiGroups:
+              - platform.theforeman.org
+            resources:
+              - smartproxies/finalizers
+            verbs:
+              - update
+  - it: binds the service account
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: ClusterRoleBinding
+      - equal:
+          path: subjects[0].name
+          value: RELEASE-NAME-foreman-operator
+  - it: uses a Role when restricted to one namespace
+    set:
+      operator.watchNamespace: foreman
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: Role
+      - equal:
+          path: metadata.namespace
+          value: foreman
+  - it: adds leader election permissions
+    documentIndex: 2
+    asserts:
+      - isKind:
+          of: Role
+      - contains:
+          path: rules[0].resources
+          content: leases
+  - it: skips leader election permissions when disabled
+    set:
+      operator.leaderElection: false
+    asserts:
+      - hasDocuments:
+          count: 2

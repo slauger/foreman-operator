@@ -216,7 +216,7 @@ func (r *SmartProxyReconciler) ensureDeployment(ctx context.Context, p *foremanv
 		if d.Spec.Selector == nil {
 			d.Spec.Selector = desired.Spec.Selector
 		}
-		d.Spec.Template = desired.Spec.Template
+		setPodTemplate(d, desired.Spec.Template)
 		return controllerutil.SetControllerReference(p, d, r.Scheme)
 	})
 	return d, err

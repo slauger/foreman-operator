@@ -237,11 +237,31 @@ func TestSmartProxyValidation(t *testing.T) {
 			wantErr: "the dnsmasq provider supports exactly one subnet per SmartProxy",
 		},
 		{
-			name: "infoblox with two subnets",
+			name:    "infoblox is not in the image",
+			mutate:  func(p *SmartProxy) { p.Spec.Features.DHCP.Provider = "infoblox" },
+			wantErr: "spec.features.dhcp.provider",
+		},
+		{
+			name: "dns_nsupdate_gss has no keytab",
 			mutate: func(p *SmartProxy) {
-				p.Spec.Features.DHCP.Provider = DHCPProviderInfoblox
-				p.Spec.Features.DHCP.Subnets = append(p.Spec.Features.DHCP.Subnets, DHCPSubnet{Network: "198.51.100.0/24"})
+				p.Spec.Features.DNS = &DNSFeature{Provider: "dns_nsupdate_gss", Server: "dns.example.com"}
 			},
+			wantErr: "spec.features.dns.provider",
+		},
+		{
+			name: "tftp without network",
+			mutate: func(p *SmartProxy) {
+				p.Spec.Networks = nil
+				p.Spec.Features.DHCP = nil
+			},
+			wantErr: "tftp requires a network",
+		},
+		{
+			name: "two networks",
+			mutate: func(p *SmartProxy) {
+				p.Spec.Networks = append(p.Spec.Networks, SmartProxyNetwork{Attachment: "vlan200", Address: "198.51.100.10/24"})
+			},
+			wantErr: "spec.networks",
 		},
 		{
 			name:    "plain http URL",

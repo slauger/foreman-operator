@@ -308,7 +308,7 @@ func (r *ForemanReconciler) applyDeployment(ctx context.Context, f *foremanv1alp
 		if d.Spec.Selector == nil {
 			d.Spec.Selector = desired.Spec.Selector
 		}
-		d.Spec.Template = desired.Spec.Template
+		setPodTemplate(d, desired.Spec.Template)
 		return controllerutil.SetControllerReference(f, d, r.Scheme)
 	})
 	return d, err

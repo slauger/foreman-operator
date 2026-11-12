@@ -49,6 +49,7 @@ const (
 // +kubebuilder:validation:XValidation:rule="!(has(self.features.dhcp) && self.features.dhcp.provider == 'dnsmasq') || (has(self.networks) && size(self.networks) > 0)",message="the dnsmasq provider requires at least one network"
 // +kubebuilder:validation:XValidation:rule="!(has(self.features.dhcp) && self.features.dhcp.provider == 'dnsmasq') || size(self.features.dhcp.subnets) == 1",message="the dnsmasq provider supports exactly one subnet per SmartProxy"
 // +kubebuilder:validation:XValidation:rule="!(has(self.features.dhcp) && self.features.dhcp.provider == 'dnsmasq') || self.features.dhcp.subnets.all(s, has(s.range))",message="the dnsmasq provider requires a range"
+// +kubebuilder:validation:XValidation:rule="!has(self.features.tftp) || (has(self.networks) && size(self.networks) > 0)",message="tftp requires a network, since dnsmasq serves TFTP only on the provisioning network"
 type SmartProxySpec struct {
 	// ForemanRef names the Foreman this proxy registers with.
 	// +kubebuilder:validation:MinLength=1
@@ -68,7 +69,9 @@ type SmartProxySpec struct {
 	// TLS selects the source of the server and client certificates.
 	TLS TLSSpec `json:"tls"`
 
-	// Networks attaches the pod to secondary networks through Multus.
+	// Networks attaches the pod to a secondary network through Multus. dnsmasq assigns the
+	// address and serves DHCP and TFTP on it. Only one network is supported.
+	// +kubebuilder:validation:MaxItems=1
 	// +optional
 	Networks []SmartProxyNetwork `json:"networks,omitempty"`
 
@@ -149,13 +152,13 @@ type TemplatesFeature struct {
 }
 
 // DHCPProvider selects the Smart Proxy DHCP provider.
-// +kubebuilder:validation:Enum=dnsmasq;infoblox
+// Only dnsmasq is in the image.
+// +kubebuilder:validation:Enum=dnsmasq
 type DHCPProvider string
 
 // DHCP providers.
 const (
-	DHCPProviderDnsmasq  DHCPProvider = "dnsmasq"
-	DHCPProviderInfoblox DHCPProvider = "infoblox"
+	DHCPProviderDnsmasq DHCPProvider = "dnsmasq"
 )
 
 // DHCPFeature configures DHCP.
@@ -188,8 +191,8 @@ type DHCPSubnet struct {
 
 // DNSFeature configures DNS.
 type DNSFeature struct {
-	// Provider selects the DNS provider.
-	// +kubebuilder:validation:Enum=dns_nsupdate;dns_nsupdate_gss
+	// Provider selects the DNS provider. Only dns_nsupdate is supported, GSS-TSIG needs a keytab.
+	// +kubebuilder:validation:Enum=dns_nsupdate
 	// +kubebuilder:default=dns_nsupdate
 	// +optional
 	Provider string `json:"provider,omitempty"`

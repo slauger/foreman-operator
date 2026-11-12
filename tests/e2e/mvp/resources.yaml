@@ -4,6 +4,9 @@ metadata:
   name: foreman
 spec:
   fqdn: e2e-openvox.lnxlabs.de
+  # Tags are pushed again on every commit, so a node must not reuse a cached image.
+  image:
+    pullPolicy: Always
   plugins:
     - foreman_ansible
   tls:
@@ -17,6 +20,8 @@ spec:
   web:
     replicas: 1
   frontend:
+    image:
+      pullPolicy: Always
     tls:
       server:
         issuerRef:
@@ -37,6 +42,8 @@ metadata:
   name: pxe
 spec:
   foremanRef: foreman
+  image:
+    pullPolicy: Always
   profile: Provisioning
   url: https://pxe.foreman-e2e.svc:8443
   tls:
@@ -46,7 +53,9 @@ spec:
     - attachment: pxe
       address: 10.99.0.10/24
   features:
-    tftp: {}
+    tftp:
+      bootFiles:
+        pullPolicy: Always
     templates:
       url: http://10.99.0.10:8000
     dhcp:
@@ -69,6 +78,8 @@ metadata:
   name: rex
 spec:
   foremanRef: foreman
+  image:
+    pullPolicy: Always
   profile: Execution
   url: https://rex.foreman-e2e.svc:8443
   tls:

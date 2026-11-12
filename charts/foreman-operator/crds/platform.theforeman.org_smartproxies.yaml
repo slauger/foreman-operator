@@ -79,7 +79,6 @@ spec:
                         description: Provider selects the DHCP provider.
                         enum:
                         - dnsmasq
-                        - infoblox
                         type: string
                       subnets:
                         description: Subnets lists the subnets served by this proxy.
@@ -122,10 +121,10 @@ spec:
                         type: string
                       provider:
                         default: dns_nsupdate
-                        description: Provider selects the DNS provider.
+                        description: Provider selects the DNS provider. Only dns_nsupdate
+                          is supported, GSS-TSIG needs a keytab.
                         enum:
                         - dns_nsupdate
-                        - dns_nsupdate_gss
                         type: string
                       server:
                         description: Server is the DNS server to update.
@@ -221,8 +220,9 @@ spec:
                     type: string
                 type: object
               networks:
-                description: Networks attaches the pod to secondary networks through
-                  Multus.
+                description: |-
+                  Networks attaches the pod to a secondary network through Multus. dnsmasq assigns the
+                  address and serves DHCP and TFTP on it. Only one network is supported.
                 items:
                   description: SmartProxyNetwork attaches the pod to a secondary network.
                   properties:
@@ -239,6 +239,7 @@ spec:
                   - address
                   - attachment
                   type: object
+                maxItems: 1
                 type: array
               profile:
                 description: Profile selects the feature set and the required privileges.
@@ -382,6 +383,10 @@ spec:
             - message: the dnsmasq provider requires a range
               rule: '!(has(self.features.dhcp) && self.features.dhcp.provider == ''dnsmasq'')
                 || self.features.dhcp.subnets.all(s, has(s.range))'
+            - message: tftp requires a network, since dnsmasq serves TFTP only on
+                the provisioning network
+              rule: '!has(self.features.tftp) || (has(self.networks) && size(self.networks)
+                > 0)'
           status:
             description: SmartProxyStatus defines the observed state of SmartProxy.
             properties:

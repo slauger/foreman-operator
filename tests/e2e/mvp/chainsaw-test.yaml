@@ -127,8 +127,13 @@ spec:
             content: |
               set -e
               mac="$(kubectl -n foreman-e2e exec pxe-client -- cat /sys/class/net/net1/address | tr -d '\r')"
+              old="$(kubectl -n foreman-e2e get pods -l app.kubernetes.io/instance=pxe -o name)"
               kubectl -n foreman-e2e rollout restart deploy/pxe >/dev/null
+              # rollout status can return before the Recreate strategy has replaced the pod, so
+              # wait for the old pod to go and the new one to become ready.
+              kubectl -n foreman-e2e wait --for=delete ${old} --timeout=2m >/dev/null
               kubectl -n foreman-e2e rollout status deploy/pxe --timeout=3m >/dev/null
+              kubectl -n foreman-e2e wait --for=condition=Ready pod -l app.kubernetes.io/instance=pxe --timeout=3m >/dev/null
               kubectl -n foreman-e2e exec deploy/pxe -c proxy -- grep -c " ${mac} 10.99.0.50 " /var/lib/foreman-proxy/dhcp/dnsmasq.leases
               kubectl -n foreman-e2e exec deploy/foreman-web -c foreman -- curl -sf \
                 --cert /etc/foreman/tls/tls.crt --key /etc/foreman/tls/tls.key --cacert /etc/foreman/tls/ca.crt \

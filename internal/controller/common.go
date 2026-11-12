@@ -9,6 +9,7 @@ import (
 	"sort"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -107,7 +108,23 @@ const (
 
 	// checksumAnnotation restarts pods when generated configuration changes.
 	checksumAnnotation = "platform.theforeman.org/config-checksum"
+
+	// restartedAtAnnotation is set on the pod template by "kubectl rollout restart".
+	restartedAtAnnotation = "kubectl.kubernetes.io/restartedAt"
 )
+
+// setPodTemplate replaces the pod template of a Deployment but keeps the annotation of
+// "kubectl rollout restart". Without it, the operator would undo every requested restart.
+func setPodTemplate(d *appsv1.Deployment, desired corev1.PodTemplateSpec) {
+	restartedAt, restarted := d.Spec.Template.Annotations[restartedAtAnnotation]
+	d.Spec.Template = *desired.DeepCopy()
+	if restarted {
+		if d.Spec.Template.Annotations == nil {
+			d.Spec.Template.Annotations = map[string]string{}
+		}
+		d.Spec.Template.Annotations[restartedAtAnnotation] = restartedAt
+	}
+}
 
 // selectorLabels identifies the pods of one component of one resource. They never change.
 func selectorLabels(name, instance, component string) map[string]string {

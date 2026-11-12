@@ -279,6 +279,17 @@ func TestSmartProxyDeployment(t *testing.T) {
 	if proxy.SecurityContext.RunAsGroup == nil || *proxy.SecurityContext.RunAsGroup != 0 {
 		t.Error("the proxy must run with group 0 to write the directory shared with dnsmasq")
 	}
+	// A probe without a TLS handshake makes WEBrick log an SSL error on every check.
+	for _, probe := range []*corev1.Probe{proxy.ReadinessProbe, proxy.LivenessProbe} {
+		if probe.TCPSocket != nil || probe.Exec == nil {
+			t.Fatalf("proxy probe = %+v", probe)
+		}
+		cmd := strings.Join(probe.Exec.Command, " ")
+		if !strings.Contains(cmd, "--resolve pxe.foreman.svc:8443:127.0.0.1 https://pxe.foreman.svc:8443/version") ||
+			!strings.Contains(cmd, "--cacert "+proxyTLSDir+"/ca.crt") || strings.Contains(cmd, " -f") {
+			t.Errorf("proxy probe command = %q", cmd)
+		}
+	}
 	caps := dnsmasq.SecurityContext.Capabilities
 	if !slices.Contains(caps.Drop, "ALL") || !slices.Contains(caps.Add, "NET_ADMIN") || !slices.Contains(caps.Add, "KILL") || len(caps.Add) != 6 {
 		t.Errorf("dnsmasq capabilities = %+v", caps)

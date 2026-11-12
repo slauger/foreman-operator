@@ -20,7 +20,7 @@ Foreman and Smart Proxy RPMs exist for x86_64 only.
 | Source | Tag |
 |---|---|
 | Push to `develop` | `develop` |
-| Push to `feat/**` | Branch name with slashes replaced by dashes, for example `feat-smart-proxy` |
+| Push to `feat/**` or `fix/**` | Branch name with slashes replaced by dashes, for example `feat-smart-proxy` |
 | Manual run | The given tag |
 
 The operator uses the tag of its `--default-image-tag` flag for every component image unless a resource sets `image.tag` or `image.digest`. Images are not signed while the repository is private, see [Supply Chain Security](../guides/supply-chain-security.md).

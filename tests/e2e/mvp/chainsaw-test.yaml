@@ -148,6 +148,15 @@ spec:
             check:
               (starts_with($stdout, 'ipmitool version')): true
 
+    - name: The proxy probes complete the TLS handshake
+      try:
+        - script:
+            content: |
+              # Probes run every 10 seconds, so a minute of logs covers several of them.
+              kubectl -n foreman-e2e logs deploy/pxe -c proxy --since=60s | grep -c SSL_accept || true
+            check:
+              (trim_space($stdout)): "0"
+
     - name: Deleting the Smart Proxy removes it from Foreman
       try:
         - delete:

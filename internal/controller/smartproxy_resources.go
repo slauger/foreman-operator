@@ -315,7 +315,7 @@ func moduleItems(config map[string]string) []corev1.KeyToPath {
 }
 
 func smartProxyDeployment(p *foremanv1alpha1.SmartProxy, images Images, caps Capabilities, config map[string]string, certChecksum string) (*appsv1.Deployment, error) {
-	_, httpsPort, err := proxyEndpoint(p)
+	host, httpsPort, err := proxyEndpoint(p)
 	if err != nil {
 		return nil, err
 	}
@@ -363,9 +363,17 @@ func smartProxyDeployment(p *foremanv1alpha1.SmartProxy, images Images, caps Cap
 	if needsHTTP(p) {
 		ports = append(ports, corev1.ContainerPort{Name: "http", ContainerPort: proxyHTTPPort})
 	}
+	// A TCP probe closes the connection before the TLS handshake, and WEBrick logs an SSL error
+	// with a stack trace for each one. curl completes the handshake and checks the served
+	// certificate against the CA. Any HTTP status counts, since the proxy answers 403 to hosts
+	// outside trusted_hosts.
+	endpoint := net.JoinHostPort(host, strconv.Itoa(int(httpsPort)))
 	probe := &corev1.Probe{
-		TCPSocket:     &corev1.TCPSocketAction{Port: intstr.FromString("https")},
-		PeriodSeconds: 10,
+		Exec: &corev1.ExecAction{Command: []string{"curl", "-s", "-o", "/dev/null", "-m", "4",
+			"--cacert", proxyTLSDir + "/ca.crt", "--cert", proxyTLSDir + "/tls.crt", "--key", proxyTLSDir + "/tls.key",
+			"--resolve", endpoint + ":127.0.0.1", "https://" + endpoint + "/version"}},
+		PeriodSeconds:  10,
+		TimeoutSeconds: 5,
 	}
 	proxySC := restrictedContainerSecurityContext()
 	proxySC.RunAsNonRoot = new(true)

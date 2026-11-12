@@ -7,7 +7,7 @@ name: Images
 
 on:
   push:
-    branches: [develop, 'feat/**']
+    branches: [develop, 'feat/**', 'fix/**']
     paths:
       - 'images/**'
       - 'api/**'

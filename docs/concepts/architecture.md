@@ -91,4 +91,4 @@ Foreman core uses Dynflow as its ActiveJob backend, independent of Katello, for 
 - The annotation `platform.theforeman.org/paused: "true"` suspends reconciliation of one object.
 - Objects that must survive the custom resource, such as `<name>-secrets` of a Foreman and the PVC of a Smart Proxy, have no owner reference.
 - All pods disable service links.
-- Read-only root filesystems with explicit `emptyDir` mounts, where the applications allow it. Planned, not set yet.
+- Read-only root filesystems in every container. Writable paths are volumes: `/tmp` (also `HOME`), the Rails `tmp` directory, the Puma socket directory, `/run/httpd`, and the data volume of the Smart Proxy.

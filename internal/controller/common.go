@@ -158,9 +158,12 @@ func podSecurityContext(openShift bool) *corev1.PodSecurityContext {
 	return psc
 }
 
+// restrictedContainerSecurityContext is the baseline for every container. The root filesystem is
+// read-only, so each writable path must be a volume.
 func restrictedContainerSecurityContext() *corev1.SecurityContext {
 	return &corev1.SecurityContext{
 		AllowPrivilegeEscalation: new(false),
+		ReadOnlyRootFilesystem:   new(true),
 		Capabilities: &corev1.Capabilities{
 			Drop: []corev1.Capability{"ALL"},
 		},

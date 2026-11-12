@@ -26,3 +26,40 @@ func TestSetPodTemplateKeepsRestart(t *testing.T) {
 		t.Error("a template that was never restarted must not get the annotation")
 	}
 }
+
+func TestEveryContainerHasReadOnlyRootFilesystem(t *testing.T) {
+	f := testForeman()
+	f.Spec.Dynflow.HostsQueueReplicas = new(int32(1))
+	r := &ForemanReconciler{Images: DefaultImages("test")}
+	specs := map[string]corev1.PodSpec{}
+	for _, d := range r.desiredDeployments(f, "config", "frontend") {
+		specs[d.Name] = d.Spec.Template.Spec
+	}
+	specs["migration"] = migrationJob(f, r.Images, r.Capabilities, "0123456789abcdef").Spec.Template.Spec
+
+	p := testSmartProxy()
+	files, err := smartProxyConfig(p, f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := smartProxyDeployment(p, r.Images, r.Capabilities, files, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	specs[d.Name] = d.Spec.Template.Spec
+
+	containers := 0
+	for name, spec := range specs {
+		for _, c := range append(spec.InitContainers, spec.Containers...) {
+			containers++
+			if sc := c.SecurityContext; sc == nil || sc.ReadOnlyRootFilesystem == nil || !*sc.ReadOnlyRootFilesystem {
+				t.Errorf("%s/%s: the root filesystem must be read-only", name, c.Name)
+			}
+		}
+	}
+	// web (Puma and httpd), three Dynflow workloads, migration, and the proxy with dnsmasq
+	// and the boot files init container.
+	if containers != 9 {
+		t.Errorf("checked %d containers, want 9", containers)
+	}
+}

@@ -504,6 +504,7 @@ func dnsmasqContainer(p *foremanv1alpha1.SmartProxy, image string) corev1.Contai
 			RunAsUser:                new(int64(0)),
 			RunAsNonRoot:             new(false),
 			AllowPrivilegeEscalation: new(false),
+			ReadOnlyRootFilesystem:   new(true),
 			Capabilities: &corev1.Capabilities{
 				Drop: []corev1.Capability{"ALL"},
 				// KILL lets the supervisor signal dnsmasq after it dropped to its own user.

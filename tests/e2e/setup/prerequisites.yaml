@@ -203,3 +203,60 @@ items:
                 secretName: tsig
             - name: cache
               emptyDir: {}
+
+  # SSH target for Remote Execution and Ansible jobs through the Execution proxy.
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: rex-target
+    spec:
+      selector:
+        app: rex-target
+      ports:
+        - name: ssh
+          port: 22
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: rex-target
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: rex-target
+      template:
+        metadata:
+          labels:
+            app: rex-target
+        spec:
+          containers:
+            - name: sshd
+              image: docker.io/library/alpine:3.22
+              command:
+                - sh
+                - -c
+                - |
+                  set -e
+                  apk add --no-cache openssh-server python3 >/dev/null
+                  ssh-keygen -A
+                  # A random password unlocks the account, key authentication stays the only way in.
+                  echo "root:$(head -c 24 /dev/urandom | base64)" | chpasswd
+                  install -d -m 0700 /root/.ssh
+                  install -m 0600 /keys/id_rsa.pub /root/.ssh/authorized_keys
+                  exec /usr/sbin/sshd -D -e
+              ports:
+                - name: ssh
+                  containerPort: 22
+              readinessProbe:
+                tcpSocket:
+                  port: ssh
+              volumeMounts:
+                - name: key
+                  mountPath: /keys
+          volumes:
+            - name: key
+              secret:
+                secretName: rex-ssh
+                items:
+                  - key: id_rsa.pub
+                    path: id_rsa.pub

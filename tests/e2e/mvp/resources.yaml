@@ -5,7 +5,7 @@ metadata:
 spec:
   fqdn: e2e-openvox.lnxlabs.de
   plugins:
-    - foreman_remote_execution
+    - foreman_ansible
   tls:
     issuerRef:
       name: foreman-internal-ca
@@ -62,3 +62,19 @@ spec:
       defaultProvider: ipmitool
   storage:
     size: 1Gi
+---
+apiVersion: platform.theforeman.org/v1alpha1
+kind: SmartProxy
+metadata:
+  name: rex
+spec:
+  foremanRef: foreman
+  profile: Execution
+  url: https://rex.foreman-e2e.svc:8443
+  tls:
+    issuerRef:
+      name: foreman-internal-ca
+  features:
+    remoteExecutionSSH:
+      sshKeySecretRef: rex-ssh
+    ansible: {}

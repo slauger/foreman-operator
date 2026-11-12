@@ -145,7 +145,9 @@ func (r *SmartProxyReconciler) reconcile(ctx context.Context, p *foremanv1alpha1
 		return ctrl.Result{RequeueAfter: requeueShort}, nil
 	}
 
-	if err := r.register(ctx, p, f, checksum(p.Spec.URL, d.Spec.Template.Annotations[checksumAnnotation])); err != nil {
+	// Foreman knows only the features of its enabled plugins, so a migration for a new plugin set
+	// refreshes the features as well.
+	if err := r.register(ctx, p, f, checksum(p.Spec.URL, d.Spec.Template.Annotations[checksumAnnotation], f.Status.AppliedMigrationHash)); err != nil {
 		p.Status.Phase = string(foremanv1alpha1.ForemanPhaseProgressing)
 		setCondition(&p.Status.Conditions, p.Generation, foremanv1alpha1.ConditionReady, metav1.ConditionFalse, reasonRegistrationFail, err.Error())
 		// Foreman reaches the proxy only once its certificate and Service are in place.

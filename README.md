@@ -30,7 +30,7 @@ Some concepts and ideas were adopted from [theforeman/foreman-kubernetes](https:
 <!-- features: keep in sync with docs/_snippets/features.md -->
 - 🌐 **Foreman on Kubernetes** - Web and Dynflow as native workloads, declared through a `Foreman` resource
 - 🧱 **Migration before Rollout** - Writers are stopped, a Job migrates the database, then the new version rolls out
-- 🛰️ **Smart Proxy as a Resource** - Each proxy is one `SmartProxy`, registered in Foreman automatically through OAuth
+- 🛰️ **Smart Proxy as a Resource** - Each proxy is one `SmartProxy`, registered in Foreman automatically through OAuth, for provisioning or for Remote Execution and Ansible over SSH
 - 🥾 **Bare-Metal Provisioning** - DHCP and TFTP through dnsmasq, DNS through nsupdate, on direct L2 networks through Multus
 - 🔐 **cert-manager Integration** - Server, client, and proxy certificates requested from cert-manager issuers
 - 🐘 **CloudNativePG** - PostgreSQL through CloudNativePG, with a chart for the cluster
@@ -38,7 +38,7 @@ Some concepts and ideas were adopted from [theforeman/foreman-kubernetes](https:
 - 🔒 **Rootless Images** - Own UBI 9 images, built for random UIDs; only dnsmasq starts as root, with a minimal capability set
 - 🛡️ **Supply Chain Security** - BuildKit provenance and SBOMs, Renovate, and govulncheck; cosign signing once the repository is public
 - 🧩 **Plugin Catalog** - Remote Execution, Ansible, Discovery, Templates, Webhooks, and Puppet in the Foreman image, enabled per instance
-- 🧭 **Planned** - Remote Execution on the Smart Proxy, recurring tasks, `Release` upgrades, OpenShift qualification, and Katello
+- 🧭 **Planned** - Recurring tasks, `Release` upgrades, OpenShift qualification, and Katello
 <!-- /features -->
 
 ## Architecture
@@ -71,7 +71,7 @@ All resources use the API group `platform.theforeman.org/v1alpha1`.
 | Kind | State | Purpose | Creates |
 |---|---|---|---|
 | **`Foreman`** | Implemented | FQDN, image, database and Valkey references, frontend with mutual TLS and exposure | Deployments, migration Job, Service, Secrets, ConfigMaps, Certificates, Route or TLSRoute and HTTPRoute |
-| **`SmartProxy`** | Implemented for `Provisioning` | One registered proxy with networks and features | Deployment with a dnsmasq container, Service, ConfigMap, PVC, Certificate, Foreman registration |
+| **`SmartProxy`** | Implemented for `Provisioning` and `Execution` | One registered proxy with networks and features | Deployment, with a dnsmasq container for provisioning, Service, ConfigMap, PVC, Certificate, Foreman registration |
 | **`Release`** | Planned | Compatible image sets, ordered upgrades | Jobs, status |
 | **`Candlepin`** | Planned | Subscription service for Katello | Deployment, Service, Secrets |
 | **`Pulp`** | Planned | Content service for Katello | Deployments, Job, registration |

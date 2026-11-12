@@ -30,9 +30,10 @@ COPY --from=ipmitool /rpms /tmp/ipmitool
 
 # foreman-proxy hard-requires rubygem-ruby-libvirt (needs libvirt-libs), which is not in the
 # UBI repos, and the libvirt providers are never enabled here. All other dependencies come
-# from the repos, then foreman-proxy and the dnsmasq DHCP provider are installed without it.
-# The build fails if rpm reports any other unsatisfied dependency. The plugins repo is
-# unsigned upstream (gpgcheck=0), so only the digests of the plugin RPM can be verified.
+# from the repos, then foreman-proxy and its plugins are installed without it: the dnsmasq
+# DHCP provider, and Dynflow, Remote Execution over SSH, and Ansible for the Execution
+# profile. The build fails if rpm reports any other unsatisfied dependency. The plugins repo
+# is unsigned upstream (gpgcheck=0), so only the digests of the plugin RPMs can be verified.
 RUN dnf install -y --nodocs "https://yum.theforeman.org/releases/${FOREMAN_VERSION}/el9/x86_64/foreman-release.rpm" \
     && dnf install -y --nodocs --setopt=install_weak_deps=0 \
         /tmp/ipmitool/ipmitool-*.rpm 'rubygem(rubyipmi)' \
@@ -41,14 +42,19 @@ RUN dnf install -y --nodocs "https://yum.theforeman.org/releases/${FOREMAN_VERSI
         'rubygem(jwt)' 'rubygem(logging)' 'rubygem(rack)' 'rubygem(rake)' 'rubygem(rb-inotify)' \
         'rubygem(redfish_client)' 'rubygem(rexml)' 'rubygem(rkerberos)' 'rubygem(rsec)' \
         'rubygem(sd_notify)' 'rubygem(sinatra)' 'rubygem(xmlrpc)' \
+        openssh-clients sshpass 'rubygem(bcrypt_pbkdf)' 'rubygem(ed25519)' 'rubygem(mqtt)' \
+        'rubygem(net-ssh)' 'rubygem(dynflow)' 'rubygem(rest-client)' 'rubygem(sqlite3)' \
+        ansible-core ansible-runner ansible-collection-theforeman-foreman \
     && mkdir /tmp/rpms \
     && dnf download -q --destdir /tmp/rpms foreman-proxy rubygem-smart_proxy_dhcp_dnsmasq \
+        rubygem-smart_proxy_dynflow rubygem-smart_proxy_remote_execution_ssh rubygem-smart_proxy_ansible \
     && rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-foreman \
     && rpm -K /tmp/rpms/foreman-proxy-*.rpm \
-    && rpm -K --nosignature /tmp/rpms/rubygem-smart_proxy_dhcp_dnsmasq-*.rpm \
+    && rpm -K --nosignature /tmp/rpms/rubygem-smart_proxy_*.rpm \
     && rpm -i --nodeps --excludedocs /tmp/rpms/*.rpm \
     && rm -rf /tmp/rpms /tmp/ipmitool \
     && unsatisfied="$(rpm -V --nofiles --nodigest --noscripts foreman-proxy rubygem-smart_proxy_dhcp_dnsmasq \
+            rubygem-smart_proxy_dynflow rubygem-smart_proxy_remote_execution_ssh rubygem-smart_proxy_ansible \
         | grep 'is needed by' | grep -v -e 'rubygem(ruby-libvirt)' || true)" \
     && if [ -n "$unsatisfied" ]; then echo "$unsatisfied"; exit 1; fi \
     && dnf clean all

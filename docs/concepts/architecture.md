@@ -1,7 +1,7 @@
 # Architecture
 
 !!! note "Status"
-    The `Foreman` and `SmartProxy` controllers are implemented as an MVP. The frontend is part of `Foreman` and runs in the web pods. The `Execution` profile, recurring tasks, `Release`, and the Katello kinds are target design. Rows and sections below say which parts are planned.
+    The `Foreman` and `SmartProxy` controllers are implemented as an MVP. The frontend is part of `Foreman` and runs in the web pods. Recurring tasks, `Release`, and the Katello kinds are target design. Rows and sections below say which parts are planned.
 
 ## Overview
 

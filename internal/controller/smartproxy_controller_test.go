@@ -344,6 +344,81 @@ func TestSmartProxyDeployment(t *testing.T) {
 	}
 }
 
+func testExecutionProxy() *foremanv1alpha1.SmartProxy {
+	p := testSmartProxy()
+	p.Name = "rex"
+	p.Spec.Profile = foremanv1alpha1.SmartProxyProfileExecution
+	p.Spec.URL = "https://rex.foreman.svc:8443"
+	p.Spec.Networks = nil
+	p.Spec.Features = foremanv1alpha1.SmartProxyFeatures{
+		RemoteExecutionSSH: &foremanv1alpha1.RemoteExecutionSSHFeature{SSHKeySecretRef: "rex-ssh"},
+		Ansible:            &foremanv1alpha1.AnsibleFeature{},
+	}
+	return p
+}
+
+func TestSmartProxyExecutionProfile(t *testing.T) {
+	p := testExecutionProxy()
+	files, err := smartProxyConfig(p, testForeman())
+	if err != nil {
+		t.Fatal(err)
+	}
+	expect := map[string][]string{
+		"dynflow.yml":              {`:enabled: "https"`},
+		"remote_execution_ssh.yml": {`:enabled: "https"`, `:ssh_identity_key_file: "/var/lib/foreman-proxy/ssh/id_rsa_foreman_proxy"`, `:mode: "ssh"`, `:local_working_dir: "/tmp"`},
+		"ansible.yml":              {`:enabled: "https"`, `:working_dir: "/tmp"`},
+		"dhcp.yml":                 {`:enabled: false`},
+		"tftp.yml":                 {`:enabled: false`},
+	}
+	for file, wants := range expect {
+		for _, want := range wants {
+			if !strings.Contains(files[file], want) {
+				t.Errorf("%s does not contain %q:\n%s", file, want, files[file])
+			}
+		}
+	}
+	if _, ok := files["dnsmasq.conf"]; ok {
+		t.Error("the Execution profile must not render dnsmasq.conf")
+	}
+
+	d, err := smartProxyDeployment(p, DefaultImages("test"), Capabilities{}, files, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	spec := d.Spec.Template.Spec
+	if len(spec.Containers) != 1 || len(spec.InitContainers) != 0 || d.Spec.Template.Annotations[multusAnnotation] != "" {
+		t.Errorf("an Execution proxy runs only the proxy container without networks: %+v", spec.Containers)
+	}
+	if spec.SecurityContext.RunAsNonRoot == nil || !*spec.SecurityContext.RunAsNonRoot {
+		t.Error("without dnsmasq the pod must require non-root")
+	}
+	var key *corev1.Volume
+	for i := range spec.Volumes {
+		if spec.Volumes[i].Name == "ssh-key" {
+			key = &spec.Volumes[i]
+		}
+	}
+	if key == nil || key.Secret.SecretName != "rex-ssh" || *key.Secret.DefaultMode != 0o440 ||
+		key.Secret.Items[0].Path != "id_rsa_foreman_proxy" || key.Secret.Items[1].Path != "id_rsa_foreman_proxy.pub" {
+		t.Fatalf("ssh key volume = %+v", key)
+	}
+	if !slices.ContainsFunc(spec.Containers[0].VolumeMounts, func(m corev1.VolumeMount) bool {
+		return m.Name == "ssh-key" && m.MountPath == proxySSHDir && m.ReadOnly
+	}) {
+		t.Error("the SSH key must be mounted read-only")
+	}
+
+	files, err = smartProxyConfig(testSmartProxy(), testForeman())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, file := range []string{"dynflow.yml", "remote_execution_ssh.yml", "ansible.yml"} {
+		if !strings.Contains(files[file], ":enabled: false") {
+			t.Errorf("a provisioning proxy must disable %s", file)
+		}
+	}
+}
+
 func TestSmartProxyRegistersAndRefreshes(t *testing.T) {
 	f, secrets, server := readyForeman()
 	c := newTestClient(f, secrets, server, testSmartProxy())
@@ -513,5 +588,16 @@ func TestSmartProxyRefreshesOnConfigChange(t *testing.T) {
 	reconcileSmartProxy(t, r)
 	if len(api.refreshed) != 1 {
 		t.Errorf("refreshed = %v, want one refresh", api.refreshed)
+	}
+
+	// A new plugin set adds features to Foreman, so the next migration refreshes them too.
+	f = mustGet(t, c, "prod", &foremanv1alpha1.Foreman{})
+	f.Status.AppliedMigrationHash = "after-plugin-change"
+	if err := c.Status().Update(context.Background(), f); err != nil {
+		t.Fatal(err)
+	}
+	reconcileSmartProxy(t, r)
+	if len(api.refreshed) != 2 {
+		t.Errorf("refreshed = %v, want a refresh after the migration", api.refreshed)
 	}
 }

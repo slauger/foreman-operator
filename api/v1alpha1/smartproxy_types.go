@@ -50,6 +50,7 @@ const (
 // +kubebuilder:validation:XValidation:rule="!(has(self.features.dhcp) && self.features.dhcp.provider == 'dnsmasq') || size(self.features.dhcp.subnets) == 1",message="the dnsmasq provider supports exactly one subnet per SmartProxy"
 // +kubebuilder:validation:XValidation:rule="!(has(self.features.dhcp) && self.features.dhcp.provider == 'dnsmasq') || self.features.dhcp.subnets.all(s, has(s.range))",message="the dnsmasq provider requires a range"
 // +kubebuilder:validation:XValidation:rule="!has(self.features.tftp) || (has(self.networks) && size(self.networks) > 0)",message="tftp requires a network, since dnsmasq serves TFTP only on the provisioning network"
+// +kubebuilder:validation:XValidation:rule="!has(self.features.ansible) || has(self.features.remoteExecutionSSH)",message="ansible requires remoteExecutionSSH, whose SSH key it uses"
 type SmartProxySpec struct {
 	// ForemanRef names the Foreman this proxy registers with.
 	// +kubebuilder:validation:MinLength=1
@@ -218,9 +219,11 @@ type BMCFeature struct {
 // HTTPBootFeature enables UEFI HTTP Boot.
 type HTTPBootFeature struct{}
 
-// RemoteExecutionSSHFeature configures Remote Execution over SSH.
+// RemoteExecutionSSHFeature configures Remote Execution over SSH. It also enables Dynflow on
+// the proxy, which runs the jobs.
 type RemoteExecutionSSHFeature struct {
-	// SSHKeySecretRef names the Secret with "id_rsa" and "id_rsa.pub".
+	// SSHKeySecretRef names the Secret with "id_rsa" and "id_rsa.pub". The proxy logs in to
+	// hosts with this key, so the public key must be authorized on them.
 	// +kubebuilder:validation:MinLength=1
 	SSHKeySecretRef string `json:"sshKeySecretRef"`
 }

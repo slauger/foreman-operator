@@ -51,7 +51,7 @@ spec:
             check:
               ($error == null): true
 
-    - name: Only the enabled plugin and its dependency are loaded
+    - name: Only the enabled plugin and its dependencies are loaded
       try:
         - script:
             content: |
@@ -60,7 +60,7 @@ spec:
               curl -sfk -u "admin:${password}" "https://e2e-openvox.lnxlabs.de/api/v2/plugins?per_page=100" \
                 | jq -r '.results[].name' | grep '^foreman' | LC_ALL=C sort | tr '\n' ' '
             check:
-              ($stdout): "foreman-tasks foreman_remote_execution "
+              ($stdout): "foreman-tasks foreman_ansible foreman_remote_execution "
 
     - name: Smart Proxy is registered with its features
       try:

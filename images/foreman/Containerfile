@@ -12,8 +12,16 @@ LABEL org.opencontainers.image.title="foreman" \
 RUN groupadd -r -g 1001 foreman \
     && useradd -r -u 1001 -g foreman -d /usr/share/foreman -s /sbin/nologin foreman
 
+# The plugin catalog. Each plugin's bundler.d file loads it only if FOREMAN_ENABLED_PLUGINS
+# lists it, and the operator always sets that variable, so installed plugins stay off until
+# spec.plugins enables them. foreman_bootdisk and foreman_openscap need packages UBI lacks.
 RUN dnf install -y --nodocs "https://yum.theforeman.org/releases/${FOREMAN_VERSION}/el9/x86_64/foreman-release.rpm" \
     && dnf install -y --nodocs foreman foreman-postgresql foreman-redis foreman-service foreman-dynflow-sidekiq \
+    && dnf install -y --nodocs --setopt=install_weak_deps=0 \
+        rubygem-foreman_ansible rubygem-foreman_discovery rubygem-foreman_puppet \
+        rubygem-foreman_remote_execution rubygem-foreman_templates rubygem-foreman_webhooks \
+    && unguarded="$(grep -L FOREMAN_ENABLED_PLUGINS /usr/share/foreman/bundler.d/foreman*.rb || true)" \
+    && if [ -n "$unguarded" ]; then echo "plugins load unconditionally: $unguarded"; exit 1; fi \
     && dnf clean all
 
 # The RPM scriptlets generate secrets at install time. They must never ship in an image:

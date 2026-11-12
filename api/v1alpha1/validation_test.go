@@ -76,6 +76,20 @@ func TestForemanValidation(t *testing.T) {
 	}{
 		{name: "valid", mutate: func(_ *Foreman) {}},
 		{
+			name:   "catalog plugin",
+			mutate: func(f *Foreman) { f.Spec.Plugins = []ForemanPlugin{"foreman_remote_execution"} },
+		},
+		{
+			name:    "plugin outside the catalog",
+			mutate:  func(f *Foreman) { f.Spec.Plugins = []ForemanPlugin{"foreman_bootdisk"} },
+			wantErr: "spec.plugins",
+		},
+		{
+			name:    "duplicate plugin",
+			mutate:  func(f *Foreman) { f.Spec.Plugins = []ForemanPlugin{"foreman_discovery", "foreman_discovery"} },
+			wantErr: "spec.plugins",
+		},
+		{
 			name:   "secret instead of issuer",
 			mutate: func(f *Foreman) { f.Spec.TLS = TLSSpec{SecretName: "internal-tls"} },
 		},

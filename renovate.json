@@ -26,6 +26,17 @@
     },
     {
       "customType": "regex",
+      "description": "Foreman and plugin RPM versions pinned in the Containerfiles",
+      "managerFilePatterns": [
+        "/(^|/)Containerfile$/"
+      ],
+      "matchStrings": [
+        "#\\s*renovate:\\s*datasource=(?<datasource>rpm)\\s+depName=(?<depName>\\S+)\\s+registryUrl=(?<registryUrl>\\S+)\\nARG \\w+=(?<currentValue>\\S+)"
+      ],
+      "versioningTemplate": "rpm"
+    },
+    {
+      "customType": "regex",
       "managerFilePatterns": [
         "/(^|/)\\.github/workflows/ci\\.yaml$/"
       ],
@@ -151,6 +162,31 @@
         "digest"
       ],
       "automerge": true
+    },
+    {
+      "description": "Foreman and plugin RPMs in one PR; merge only after a manual E2E run on the test cluster",
+      "matchDatasources": [
+        "rpm"
+      ],
+      "groupName": "Foreman RPMs",
+      "addLabels": [
+        "foreman"
+      ],
+      "semanticCommitType": "fix",
+      "automerge": false
+    },
+    {
+      "description": "Foreman releases: only x.y.0 tags count, a new FOREMAN_VERSION needs the upgrade flow and new repository URLs",
+      "matchDepNames": [
+        "theforeman/foreman"
+      ],
+      "extractVersion": "^(?<version>\\d+\\.\\d+)\\.0$",
+      "groupName": "Foreman release",
+      "addLabels": [
+        "foreman"
+      ],
+      "semanticCommitType": "feat",
+      "automerge": false
     }
   ]
 }

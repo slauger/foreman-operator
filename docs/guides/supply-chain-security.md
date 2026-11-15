@@ -9,6 +9,8 @@
 |---|---|
 | Dependency updates | Renovate, `renovate.json` |
 | Base image tracking | Renovate for the `FROM` lines of the Containerfiles |
+| Foreman and plugin versions | Pinned RPMs, tracked by Renovate with the `rpm` datasource, see [Container Images](../concepts/images.md#versions) |
+| Base package errata | Weekly rebuild of `develop` |
 | Go vulnerability scan | `govulncheck` in CI |
 | Static analysis | `golangci-lint` with `gosec` in CI |
 | Invisible character check | Unicode lint in CI |

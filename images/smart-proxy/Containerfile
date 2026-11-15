@@ -13,7 +13,21 @@ RUN mkdir /rpms \
 
 FROM registry.access.redhat.com/ubi9/ubi:9.8-1793861509
 
+# renovate: datasource=github-tags depName=theforeman/foreman
 ARG FOREMAN_VERSION=5.0
+
+# Exact RPM versions, tracked by Renovate from the repositories of FOREMAN_VERSION.
+# A new FOREMAN_VERSION also needs the registry URLs below and every version updated.
+# renovate: datasource=rpm depName=foreman-proxy registryUrl=https://yum.theforeman.org/releases/5.0/el9/x86_64/repodata/
+ARG FOREMAN_PROXY_RPM=5.0.1-1.el9
+# renovate: datasource=rpm depName=rubygem-smart_proxy_dhcp_dnsmasq registryUrl=https://yum.theforeman.org/plugins/5.0/el9/x86_64/repodata/
+ARG SMART_PROXY_DHCP_DNSMASQ_RPM=1.0-3.fm5_0.el9
+# renovate: datasource=rpm depName=rubygem-smart_proxy_dynflow registryUrl=https://yum.theforeman.org/plugins/5.0/el9/x86_64/repodata/
+ARG SMART_PROXY_DYNFLOW_RPM=1.0.1-1.fm5_0.el9
+# renovate: datasource=rpm depName=rubygem-smart_proxy_remote_execution_ssh registryUrl=https://yum.theforeman.org/plugins/5.0/el9/x86_64/repodata/
+ARG SMART_PROXY_REMOTE_EXECUTION_SSH_RPM=1.0.4-1.fm5_0.el9
+# renovate: datasource=rpm depName=rubygem-smart_proxy_ansible registryUrl=https://yum.theforeman.org/plugins/5.0/el9/x86_64/repodata/
+ARG SMART_PROXY_ANSIBLE_RPM=3.7.3-1.fm5_0.el9
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -46,8 +60,11 @@ RUN dnf install -y --nodocs "https://yum.theforeman.org/releases/${FOREMAN_VERSI
         'rubygem(net-ssh)' 'rubygem(dynflow)' 'rubygem(rest-client)' 'rubygem(sqlite3)' \
         ansible-core ansible-runner ansible-collection-theforeman-foreman \
     && mkdir /tmp/rpms \
-    && dnf download -q --destdir /tmp/rpms foreman-proxy rubygem-smart_proxy_dhcp_dnsmasq \
-        rubygem-smart_proxy_dynflow rubygem-smart_proxy_remote_execution_ssh rubygem-smart_proxy_ansible \
+    && dnf download -q --destdir /tmp/rpms "foreman-proxy-${FOREMAN_PROXY_RPM}" \
+        "rubygem-smart_proxy_dhcp_dnsmasq-${SMART_PROXY_DHCP_DNSMASQ_RPM}" \
+        "rubygem-smart_proxy_dynflow-${SMART_PROXY_DYNFLOW_RPM}" \
+        "rubygem-smart_proxy_remote_execution_ssh-${SMART_PROXY_REMOTE_EXECUTION_SSH_RPM}" \
+        "rubygem-smart_proxy_ansible-${SMART_PROXY_ANSIBLE_RPM}" \
     && rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-foreman \
     && rpm -K /tmp/rpms/foreman-proxy-*.rpm \
     && rpm -K --nosignature /tmp/rpms/rubygem-smart_proxy_*.rpm \

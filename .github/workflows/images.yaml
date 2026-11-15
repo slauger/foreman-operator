@@ -2,6 +2,7 @@ name: Images
 
 # Builds all component images. Pushes from develop are tagged "develop", feature branches get
 # their branch name as tag, so they can be tested on a cluster without touching "develop".
+# develop is also rebuilt weekly.
 # Images are not signed while the repository is private: keyless signatures and provenance
 # would publish repository details to the public Sigstore log.
 
@@ -17,6 +18,10 @@ on:
       - 'go.sum'
       - '.github/workflows/images.yaml'
       - '.github/workflows/_container-build.yaml'
+  # Weekly rebuild of develop, for errata of the UBI and CentOS Stream packages, which are not
+  # pinned. Scheduled runs use the default branch, so they only replace the develop tag.
+  schedule:
+    - cron: '17 4 * * 1'
   workflow_dispatch:
     inputs:
       tag:

@@ -21,10 +21,22 @@ Foreman and Smart Proxy RPMs exist for x86_64 only.
 |---|---|
 | Push to `develop` | `develop` |
 | Push to `feat/**` or `fix/**` | Branch name with slashes replaced by dashes, for example `feat-smart-proxy` |
+| Weekly schedule | `develop` |
 | Manual run | The given tag |
 | [Release](../development/releasing.md) | The version, for example `0.1.0`, and `latest` |
 
 The operator uses the tag of its `--default-image-tag` flag for every component image unless a resource sets `image.tag` or `image.digest`. The chart sets the flag to its `appVersion`, so a released chart runs the images of the same release. Images are not signed while the repository is private, see [Supply Chain Security](../guides/supply-chain-security.md).
+
+## Versions
+
+The Foreman and Smart Proxy Containerfiles pin every Foreman, Smart Proxy, and plugin RPM to an exact `version-release`, for example `ARG FOREMAN_RPM=5.0.1-2.el9`. Two builds of one commit install the same versions of these packages. Packages from UBI 9 and CentOS Stream 9 are not pinned; the weekly rebuild of `develop` picks up their errata.
+
+Renovate tracks the pins with its `rpm` datasource, which reads the repository metadata under `yum.theforeman.org/{releases,plugins}/<version>/el9/x86_64/repodata/`:
+
+| Update | Renovate PR | Merge |
+|---|---|---|
+| New RPM of Foreman, Smart Proxy, or a plugin | One grouped PR, `Foreman RPMs` | By hand, after an E2E run on the test cluster |
+| New Foreman release, from the `x.y.0` tags of `theforeman/foreman` | `Foreman release`, one PR per minor | By hand. The PR changes only `FOREMAN_VERSION`; the repository URLs in the `renovate:` comments and all RPM pins must be updated in the same PR. Foreman upgrades one minor at a time. |
 
 ## Smart Proxy image
 

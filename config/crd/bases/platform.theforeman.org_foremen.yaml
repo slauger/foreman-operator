@@ -400,6 +400,7 @@ spec:
                     Foreman image.
                   enum:
                   - foreman_ansible
+                  - foreman_bootdisk
                   - foreman_discovery
                   - foreman_puppet
                   - foreman_remote_execution

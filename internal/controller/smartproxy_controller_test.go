@@ -208,6 +208,7 @@ func TestSmartProxyConfig(t *testing.T) {
 		"templates.yml":     {`:enabled: true`, `:template_url: "http://10.99.0.10:8000"`},
 		"bmc.yml":           {`:enabled: false`},
 		"facts.yml":         {`:enabled: false`},
+		"discovery.yml":     {`:enabled: false`},
 		"dnsmasq.conf":      {"dhcp-range=10.99.0.100,10.99.0.150,255.255.255.0,12h", "dhcp-option=3,10.99.0.1", "dhcp-option=6,10.99.0.2,10.99.0.3", "dhcp-hostsfile=/var/lib/foreman-proxy/dhcp/dhcphosts", "enable-tftp"},
 		"dhcp_infoblox.yml": nil,
 	}
@@ -433,6 +434,19 @@ func TestSmartProxyExecutionProfile(t *testing.T) {
 		if !strings.Contains(files[file], ":enabled: false") {
 			t.Errorf("a provisioning proxy must disable %s", file)
 		}
+	}
+}
+
+func TestSmartProxyDiscovery(t *testing.T) {
+	p := testSmartProxy()
+	p.Spec.Features.Discovery = &foremanv1alpha1.DiscoveryFeature{}
+	files, err := smartProxyConfig(p, testForeman())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Discovered hosts reach the proxy over HTTP or HTTPS.
+	if !strings.Contains(files["discovery.yml"], ":enabled: true") {
+		t.Errorf("discovery.yml = %q", files["discovery.yml"])
 	}
 }
 

@@ -18,6 +18,8 @@
 | `foreman_ansible` | `foreman_remote_execution`, `foreman-tasks` |
 | `foreman_bootdisk` | |
 | `foreman_discovery` | |
+| `foreman_fog_proxmox` | |
+| `foreman_kubevirt` | |
 | `foreman_puppet` | |
 | `foreman_remote_execution` | `foreman-tasks` |
 | `foreman_templates` | |
@@ -29,6 +31,16 @@ Not in the catalog:
 |---|---|
 | `foreman_openscap` | Needs `scap-security-guide`, which UBI 9 lacks |
 | `katello` | See [Katello](katello.md) |
+
+## Compute resources
+
+| Provider | Package | Enabled by |
+|---|---|---|
+| VMware | `foreman-vmware` | Always available. It is a bundler group of Foreman itself, not a plugin, so `FOREMAN_ENABLED_PLUGINS` does not apply |
+| Proxmox | `rubygem-foreman_fog_proxmox` | `spec.plugins: [foreman_fog_proxmox]` |
+| KubeVirt | `rubygem-foreman_kubevirt` | `spec.plugins: [foreman_kubevirt]` |
+
+Compute resources are created in Foreman as usual. libvirt is not available: `foreman-libvirt` needs `ruby-libvirt` and `libvirt-libs`, which UBI 9 lacks. EC2, OpenStack, Azure, and Google are not in the image.
 
 ## Boot disks
 

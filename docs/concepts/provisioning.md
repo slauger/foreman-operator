@@ -77,4 +77,4 @@ BMC supports the `ipmitool`, `redfish`, `shell`, and `ssh` providers. `ipmitool`
 
 ## Discovery
 
-`foreman_discovery` is in the Foreman plugin catalog. `smart_proxy_discovery` has the same open dependencies as `foreman-proxy`, see [Container Images](images.md). Discovery on the Smart Proxy is a candidate for a later version, see [Plugins](plugins.md).
+Discovery needs `foreman_discovery` in `Foreman.spec.plugins` and `features.discovery` on the provisioning proxy. Discovered hosts on the provisioning network post their facts to the proxy, which forwards them to Foreman with its client certificate, so hosts do not need to reach Foreman directly. The Smart Proxy image contains `smart_proxy_discovery`, installed without dependency checks like `foreman-proxy`. The discovery image for the hosts is not part of the boot files.

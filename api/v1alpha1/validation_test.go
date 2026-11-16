@@ -228,7 +228,19 @@ func TestSmartProxyValidation(t *testing.T) {
 			mutate: func(p *SmartProxy) {
 				p.Spec.Profile = SmartProxyProfileExecution
 			},
-			wantErr: "the Execution profile does not support dhcp, tftp, or dns",
+			wantErr: "the Execution profile does not support dhcp, tftp, dns, or discovery",
+		},
+		{
+			name: "execution with discovery",
+			mutate: func(p *SmartProxy) {
+				p.Spec.Profile = SmartProxyProfileExecution
+				p.Spec.Features = SmartProxyFeatures{Discovery: &DiscoveryFeature{}}
+			},
+			wantErr: "does not support dhcp, tftp, dns, or discovery",
+		},
+		{
+			name:   "provisioning with discovery",
+			mutate: func(p *SmartProxy) { p.Spec.Features.Discovery = &DiscoveryFeature{} },
 		},
 		{
 			name: "provisioning with ansible",

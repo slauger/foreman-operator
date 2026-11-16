@@ -80,7 +80,7 @@ spec:
               curl -sfk -u "admin:${password}" "https://e2e-openvox.lnxlabs.de/api/v2/plugins?per_page=100" \
                 | jq -r '.results[].name' | grep '^foreman' | LC_ALL=C sort | tr '\n' ' '
             check:
-              ($stdout): "foreman-tasks foreman_ansible foreman_bootdisk foreman_fog_proxmox foreman_kubevirt foreman_remote_execution "
+              ($stdout): "foreman-tasks foreman_ansible foreman_bootdisk foreman_discovery foreman_fog_proxmox foreman_kubevirt foreman_remote_execution "
 
     - name: The compute resource providers are available
       try:
@@ -124,7 +124,7 @@ spec:
               curl -sfk -u "admin:${password}" "https://e2e-openvox.lnxlabs.de/api/smart_proxies?search=name%3Dpxe" \
                 | jq -r '.results[0].features[].name' | LC_ALL=C sort | tr '\n' ' '
             check:
-              ($stdout): "BMC DHCP DNS Logs TFTP Templates "
+              ($stdout): "BMC DHCP DNS Discovery Logs TFTP Templates "
       catch:
         - describe:
             apiVersion: platform.theforeman.org/v1alpha1
@@ -162,6 +162,27 @@ spec:
                 'ip addr add 10.99.0.50/24 dev net1 2>/dev/null; tftp -g -r pxelinux.0 -l /tmp/pxelinux.0 10.99.0.10 && wc -c < /tmp/pxelinux.0'
             check:
               (to_number(trim_space($stdout)) > `1000`): true
+
+    - name: A discovered host reaches Foreman through the proxy
+      try:
+        - script:
+            timeout: 3m
+            content: |
+              set -e
+              password="$(kubectl -n foreman-e2e get secret foreman-secrets -o jsonpath='{.data.admin-password}' | base64 -d)"
+              api="https://e2e-openvox.lnxlabs.de/api/v2/discovered_hosts"
+              mac=52:54:00:e2:e2:01
+              # A discovered host of an earlier run would only be updated.
+              for id in $(curl -sfk -u "admin:${password}" "${api}?search=mac%3D${mac}" | jq -r '.results[].id'); do
+                curl -sfk -u "admin:${password}" -X DELETE "${api}/${id}" >/dev/null
+              done
+              facts='{"facts":{"discovery_bootif":"'${mac}'","interfaces":"eth0","macaddress_eth0":"'${mac}'","ipaddress_eth0":"10.99.0.50","netmask_eth0":"255.255.255.0","macaddress":"'${mac}'","ipaddress":"10.99.0.50","discovery_version":"5.0.0","architecture":"x86_64","hardwareisa":"x86_64","operatingsystem":"Linux","physicalprocessorcount":"1","processorcount":"1","memorysize_mb":"1024","blockdevices":"sda","blockdevice_sda_size":"10737418240"}}'
+              # Like the discovery image, the client posts its facts to the proxy on the provisioning network.
+              kubectl -n foreman-e2e exec pxe-client -- wget -q -O /dev/null \
+                --header 'Content-Type: application/json' --post-data "${facts}" http://10.99.0.10:8000/discovery/create
+              curl -sfk -u "admin:${password}" "${api}?search=mac%3D${mac}" | jq -r '.results[0].name'
+            check:
+              ($stdout): "mac525400e2e201"
 
     - name: DNS record through the proxy lands in BIND
       try:

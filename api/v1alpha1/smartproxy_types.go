@@ -44,7 +44,7 @@ const (
 )
 
 // SmartProxySpec defines the desired state of SmartProxy.
-// +kubebuilder:validation:XValidation:rule="self.profile != 'Execution' || (!has(self.features.dhcp) && !has(self.features.tftp) && !has(self.features.dns))",message="the Execution profile does not support dhcp, tftp, or dns"
+// +kubebuilder:validation:XValidation:rule="self.profile != 'Execution' || (!has(self.features.dhcp) && !has(self.features.tftp) && !has(self.features.dns) && !has(self.features.discovery))",message="the Execution profile does not support dhcp, tftp, dns, or discovery"
 // +kubebuilder:validation:XValidation:rule="self.profile != 'Provisioning' || (!has(self.features.remoteExecutionSSH) && !has(self.features.ansible))",message="the Provisioning profile does not support remoteExecutionSSH or ansible"
 // +kubebuilder:validation:XValidation:rule="!(has(self.features.dhcp) && self.features.dhcp.provider == 'dnsmasq') || (has(self.networks) && size(self.networks) > 0)",message="the dnsmasq provider requires at least one network"
 // +kubebuilder:validation:XValidation:rule="!(has(self.features.dhcp) && self.features.dhcp.provider == 'dnsmasq') || size(self.features.dhcp.subnets) == 1",message="the dnsmasq provider supports exactly one subnet per SmartProxy"
@@ -133,6 +133,11 @@ type SmartProxyFeatures struct {
 	// Ansible enables the Ansible feature.
 	// +optional
 	Ansible *AnsibleFeature `json:"ansible,omitempty"`
+
+	// Discovery relays the facts of discovered hosts to Foreman, which needs the
+	// foreman_discovery plugin.
+	// +optional
+	Discovery *DiscoveryFeature `json:"discovery,omitempty"`
 }
 
 // TFTPFeature configures TFTP.
@@ -230,6 +235,9 @@ type RemoteExecutionSSHFeature struct {
 
 // AnsibleFeature enables the Ansible feature.
 type AnsibleFeature struct{}
+
+// DiscoveryFeature enables the Discovery feature.
+type DiscoveryFeature struct{}
 
 // SmartProxyStorage configures the persistent volume for the TFTP root and the DHCP state.
 type SmartProxyStorage struct {

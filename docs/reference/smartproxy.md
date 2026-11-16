@@ -38,10 +38,11 @@ The network is attached as `net1`. The dnsmasq container assigns its static addr
 | `httpBoot` | No | Enables UEFI HTTP Boot from the TFTP root on port 8000 |
 | `remoteExecutionSSH.sshKeySecretRef` | Yes | Secret with `id_rsa` and `id_rsa.pub`. Enables Dynflow and Remote Execution over SSH, see [Smart Proxy](../concepts/smart-proxy.md#execution-profile) |
 | `ansible` | No | Enables Ansible. Requires `remoteExecutionSSH` |
+| `discovery` | No | Relays the facts of discovered hosts to Foreman over HTTP and HTTPS. Foreman needs the `foreman_discovery` plugin, or it does not know the feature |
 
 ## Validation
 
-- `Execution` does not support `dhcp`, `tftp`, or `dns`.
+- `Execution` does not support `dhcp`, `tftp`, `dns`, or `discovery`.
 - `Provisioning` does not support `remoteExecutionSSH` or `ansible`.
 - `ansible` requires `remoteExecutionSSH`.
 - At most one network is supported.

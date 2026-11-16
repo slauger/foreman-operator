@@ -31,7 +31,7 @@ Registration errors set reason `RegistrationFailed` and are retried every 30 sec
 
 | Profile | Features | Network | Privileges |
 |---|---|---|---|
-| `Provisioning` | `tftp`, `dhcp`, `dns`, `bmc`, `templates`, `httpBoot` | Multus | Dedicated, see [Provisioning](provisioning.md) |
+| `Provisioning` | `tftp`, `dhcp`, `dns`, `bmc`, `templates`, `httpBoot`, `discovery` | Multus | Dedicated, see [Provisioning](provisioning.md) |
 | `Execution` | `remoteExecutionSSH`, `ansible` | Pod network with egress to hosts | Restricted, non-root |
 
 A third profile for Katello content mirrors will be designed with [Katello](katello.md).

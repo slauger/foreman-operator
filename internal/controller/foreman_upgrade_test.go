@@ -288,3 +288,39 @@ func TestStopWritersIgnoresFinishedPods(t *testing.T) {
 		t.Errorf("running = %d, err = %v, want 0", running, err)
 	}
 }
+
+func TestRecurringTasks(t *testing.T) {
+	r, _, f := upgradeFixture(t)
+	for _, period := range []string{"hourly", "daily", "weekly", "monthly"} {
+		cj := mustGet(t, r.Client, "prod-cron-"+period, &batchv1.CronJob{})
+		if *cj.Spec.Suspend {
+			t.Errorf("%s: suspended while Foreman runs", period)
+		}
+		if cj.Spec.ConcurrencyPolicy != batchv1.ForbidConcurrent {
+			t.Errorf("%s: concurrency policy = %s", period, cj.Spec.ConcurrencyPolicy)
+		}
+		ctr := cj.Spec.JobTemplate.Spec.Template.Spec.Containers[0]
+		if strings.Join(ctr.Command, " ") != "bin/rails cron:"+period {
+			t.Errorf("%s: command = %v", period, ctr.Command)
+		}
+		if sc := ctr.SecurityContext; sc == nil || sc.ReadOnlyRootFilesystem == nil || !*sc.ReadOnlyRootFilesystem {
+			t.Errorf("%s: the root filesystem must be read-only", period)
+		}
+	}
+	if s := mustGet(t, r.Client, "prod-cron-hourly", &batchv1.CronJob{}).Spec.Schedule; s != "30 * * * *" {
+		t.Errorf("hourly schedule = %q", s)
+	}
+
+	// A migration suspends them before the writers stop, and a running task counts as a writer.
+	pod := &corev1.Pod{Name: "prod-cron-hourly-x", Namespace: testNamespace, Labels: selectorLabels(foremanAppName, "prod", componentCron)}
+	if err := r.Create(context.Background(), pod); err != nil {
+		t.Fatal(err)
+	}
+	got := updateSpec(t, r, f, func(f *foremanv1alpha1.Foreman) { f.Spec.Image.Tag = "5.1" })
+	completePreflight(t, r, got, "5.1.0")
+	got = reconcileForeman(t, r, got)
+	requireCondition(t, got.Status.Conditions, foremanv1alpha1.ConditionProgressing, metav1.ConditionTrue, reasonStoppingWriters)
+	if cj := mustGet(t, r.Client, "prod-cron-daily", &batchv1.CronJob{}); !*cj.Spec.Suspend {
+		t.Error("recurring tasks must be suspended during a migration")
+	}
+}

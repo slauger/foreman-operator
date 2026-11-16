@@ -342,12 +342,17 @@ func dynflowDeployment(f *foremanv1alpha1.Foreman, images Images, caps Capabilit
 	return d
 }
 
+// migrationSeedReset makes db:seed run in full. Foreman skips the seeds while its seed files
+// and templates are unchanged, but templates shipped with Foreman that require a plugin, such
+// as the foreman_bootdisk templates, are imported only once that plugin is enabled.
+const migrationSeedReset = `bin/rails runner "ForemanInternal.where(key: 'database_seed').delete_all"`
+
 // migrationJob migrates and seeds the database and runs the upgrade tasks for one hash.
 func migrationJob(f *foremanv1alpha1.Foreman, images Images, caps Capabilities, hash string) *batchv1.Job {
 	secrets := foremanSecretsName(f)
 	ctr := corev1.Container{
 		Name:    "migrate",
-		Command: []string{"/bin/bash", "-c", "bin/rails db:migrate && bin/rails db:seed && bin/rails upgrade:run"},
+		Command: []string{"/bin/bash", "-c", "bin/rails db:migrate && " + migrationSeedReset + " && bin/rails db:seed && bin/rails upgrade:run"},
 		Env: append(foremanEnv(f, 5),
 			corev1.EnvVar{Name: "SEED_ADMIN_USER", Value: "admin"},
 			secretEnv("SEED_ADMIN_PASSWORD", secrets, keyAdminPassword),

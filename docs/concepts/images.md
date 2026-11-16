@@ -8,7 +8,7 @@ The upstream Foreman images are based on CentOS Stream 10, declare named users, 
 | Image | Base | Content | Platforms |
 |---|---|---|---|
 | `ghcr.io/slauger/foreman-operator` | UBI 9 minimal | Operator binary | amd64, arm64 |
-| `ghcr.io/slauger/foreman-operator-foreman` | UBI 9 | Foreman 5.0 RPMs and the [plugin catalog](plugins.md#catalog) | amd64 |
+| `ghcr.io/slauger/foreman-operator-foreman` | UBI 9, boot disk tools from CentOS Stream 9 | Foreman 5.0 RPMs and the [plugin catalog](plugins.md#catalog) | amd64 |
 | `ghcr.io/slauger/foreman-operator-smart-proxy` | UBI 9 | `foreman-proxy`, `smart_proxy_dhcp_dnsmasq`, dnsmasq, `bind-utils`, the dnsmasq supervisor, `ipmitool`, and the Dynflow, Remote Execution SSH, and Ansible plugins with the OpenSSH client and `ansible-core` | amd64 |
 | `ghcr.io/slauger/foreman-operator-boot-files` | UBI 9 minimal, files from CentOS Stream 9 | syslinux, GRUB 2, and shim boot loaders | amd64 |
 | `ghcr.io/slauger/foreman-operator-frontend` | UBI 9 | `httpd`, `mod_ssl`; runs as the container `httpd` in the Foreman web pods, the configuration is mounted by the operator | amd64, arm64 |
@@ -59,11 +59,11 @@ Checked against UBI 9 BaseOS, AppStream, and CodeReady Builder, plus the Foreman
 | Package set | Result |
 |---|---|
 | `foreman`, `foreman-service`, `foreman-postgresql`, `foreman-redis`, `foreman-dynflow-sidekiq` | Installed in the Foreman image |
-| `foreman_discovery`, `foreman_puppet`, `foreman_remote_execution` | Resolved, not installed yet |
+| `foreman_discovery`, `foreman_puppet`, `foreman_remote_execution` | Installed |
 | `foreman-proxy` | Installed with `--nodeps`, without `rubygem-ruby-libvirt` |
 | `ipmitool` | Not in UBI 9, installed from CentOS Stream 9 |
 | `foreman-bootloaders-redhat` | GRUB and shim packages are missing, replaced by the boot-files image |
-| `foreman_bootdisk` | Open: five packages are missing |
+| `foreman_bootdisk` | Installed; its tools come from CentOS Stream 9, see [Plugins](plugins.md#boot-disks) |
 | `dnsmasq`, `httpd`, `mod_ssl`, `bind-utils` | In UBI 9 |
 | `dhcp-server`, `tftp-server`, `kea`, `freeipmi` | Not in UBI 9 |
 

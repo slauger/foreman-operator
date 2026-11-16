@@ -52,6 +52,10 @@ chainsaw test --config tests/e2e/chainsaw-config.yaml tests/e2e/mvp
 
 Run `setup.sh` again before the MVP test, since the upgrade test leaves its own resources in the namespace.
 
+## Restore drill
+
+`tests/e2e/restore.sh` runs the restore order of [Backup and Restore](../guides/backup-restore.md#restore-drill) in an empty namespace with `IMAGE_TAG`. Like the upgrade test, it leaves its resources in the namespace.
+
 Independent of the Chainsaw steps, the OAuth signature of the operator was verified against the real Foreman on the cluster: correctly signed requests are accepted and wrongly signed requests are rejected. With the frontend sidecar, the full test passed on e2e-openvox both against an installation upgraded from the separate `Frontend` and from scratch, with a new namespace and an empty database.
 
 ## PXE lab

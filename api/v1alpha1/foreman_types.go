@@ -82,7 +82,7 @@ type ForemanSpec struct {
 }
 
 // ForemanPlugin names a plugin from the catalog in the Foreman image.
-// +kubebuilder:validation:Enum=foreman_ansible;foreman_bootdisk;foreman_discovery;foreman_puppet;foreman_remote_execution;foreman_templates;foreman_webhooks
+// +kubebuilder:validation:Enum=foreman_ansible;foreman_bootdisk;foreman_discovery;foreman_fog_proxmox;foreman_kubevirt;foreman_puppet;foreman_remote_execution;foreman_templates;foreman_webhooks
 type ForemanPlugin string
 
 // DatabaseSpec selects the CloudNativePG cluster.

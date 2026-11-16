@@ -35,6 +35,10 @@ ARG FOREMAN_ANSIBLE_RPM=18.0.6-1.fm5_0.el9
 ARG FOREMAN_BOOTDISK_RPM=24.1.0-1.fm5_0.el9
 # renovate: datasource=rpm depName=rubygem-foreman_discovery registryUrl=https://yum.theforeman.org/plugins/5.0/el9/x86_64/repodata/
 ARG FOREMAN_DISCOVERY_RPM=26.1.3-2.fm5_0.el9
+# renovate: datasource=rpm depName=rubygem-foreman_fog_proxmox registryUrl=https://yum.theforeman.org/plugins/5.0/el9/x86_64/repodata/
+ARG FOREMAN_FOG_PROXMOX_RPM=1.0.0-1.fm5_0.el9
+# renovate: datasource=rpm depName=rubygem-foreman_kubevirt registryUrl=https://yum.theforeman.org/plugins/5.0/el9/x86_64/repodata/
+ARG FOREMAN_KUBEVIRT_RPM=0.6.0-2.fm5_0.el9
 # renovate: datasource=rpm depName=rubygem-foreman_puppet registryUrl=https://yum.theforeman.org/plugins/5.0/el9/x86_64/repodata/
 ARG FOREMAN_PUPPET_RPM=11.2.1-1.fm5_0.el9
 # renovate: datasource=rpm depName=rubygem-foreman_remote_execution registryUrl=https://yum.theforeman.org/plugins/5.0/el9/x86_64/repodata/
@@ -60,15 +64,18 @@ COPY --from=bootdisk /efi /var/lib/foreman/bootdisk
 # The plugin catalog. Each plugin's bundler.d file loads it only if FOREMAN_ENABLED_PLUGINS
 # lists it, and the operator always sets that variable, so installed plugins stay off until
 # spec.plugins enables them. foreman_openscap needs packages UBI lacks.
+# foreman-vmware is a bundler group of Foreman itself, not a plugin, so VMware is always available.
 # foreman_bootdisk requires grub2-efi-x64, whose GRUB tools are not needed for its EFI binaries,
 # so it is installed without dependency checks after all its other dependencies; the build
 # fails if rpm reports any other unsatisfied dependency.
 RUN dnf install -y --nodocs "https://yum.theforeman.org/releases/${FOREMAN_VERSION}/el9/x86_64/foreman-release.rpm" \
     && dnf install -y --nodocs "foreman-${FOREMAN_RPM}" "foreman-postgresql-${FOREMAN_RPM}" \
         "foreman-redis-${FOREMAN_RPM}" "foreman-service-${FOREMAN_RPM}" "foreman-dynflow-sidekiq-${FOREMAN_RPM}" \
+        "foreman-vmware-${FOREMAN_RPM}" \
     && dnf install -y --nodocs --setopt=install_weak_deps=0 \
         "rubygem-foreman-tasks-${FOREMAN_TASKS_RPM}" "rubygem-foreman_ansible-${FOREMAN_ANSIBLE_RPM}" \
         "rubygem-foreman_discovery-${FOREMAN_DISCOVERY_RPM}" "rubygem-foreman_puppet-${FOREMAN_PUPPET_RPM}" \
+        "rubygem-foreman_fog_proxmox-${FOREMAN_FOG_PROXMOX_RPM}" "rubygem-foreman_kubevirt-${FOREMAN_KUBEVIRT_RPM}" \
         "rubygem-foreman_remote_execution-${FOREMAN_REMOTE_EXECUTION_RPM}" \
         "rubygem-foreman_templates-${FOREMAN_TEMPLATES_RPM}" "rubygem-foreman_webhooks-${FOREMAN_WEBHOOKS_RPM}" \
         /tmp/bootdisk/*.rpm \

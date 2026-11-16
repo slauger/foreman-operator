@@ -90,7 +90,7 @@ spec:
               set -e
               password="$(kubectl -n foreman-e2e get secret foreman-secrets -o jsonpath='{.data.admin-password}' | base64 -d)"
               iso="$(mktemp)"
-              curl -sfk -u "admin:${password}" -o "${iso}" "https://e2e-openvox.lnxlabs.de/bootdisk/api/generic"
+              curl -sfk -u "admin:${password}" -o "${iso}" "https://e2e-openvox.lnxlabs.de/api/bootdisk/generic"
               # An ISO 9660 image has the identifier CD001 at byte 32769.
               dd if="${iso}" bs=1 skip=32769 count=5 2>/dev/null
               rm -f "${iso}"

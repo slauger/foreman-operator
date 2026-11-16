@@ -35,7 +35,7 @@ A blocked preflight is checked again every minute. A task can still start betwee
 
 1. The recurring task CronJobs are suspended, and all web and Dynflow Deployments are scaled to zero. The frontend runs in the web pods, so Foreman is unreachable until the rollout.
 2. The controller waits until no Foreman pods remain, including running recurring tasks. Finished pods and the preflight and migration pods do not count.
-3. Older migration Jobs are deleted, and the Job `<name>-migrate-<hash>` runs `db:migrate`, `db:seed`, and `upgrade:run`. `upgrade:run` executes one-time data tasks of a release and refuses to run while migrations or seeds are pending.
+3. Older migration Jobs are deleted, and the Job `<name>-migrate-<hash>` runs `db:migrate`, `db:seed`, and `upgrade:run`. Before `db:seed`, it resets the stored seed hash: Foreman skips the seeds while its seed files and templates are unchanged, but templates shipped with Foreman that require a plugin, such as those of `foreman_bootdisk`, are imported only once the plugin is enabled. `upgrade:run` executes one-time data tasks of a release and refuses to run while migrations or seeds are pending.
 4. After the Job completes, the hash, the version, and the plugin list are recorded and the Deployments roll out with the new image.
 
 ## Roll forward

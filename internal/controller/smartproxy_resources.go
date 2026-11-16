@@ -191,6 +191,8 @@ func smartProxyConfig(p *foremanv1alpha1.SmartProxy, f *foremanv1alpha1.Foreman)
 	add("ansible.yml", moduleSettings(moduleEnabled(feat.Ansible != nil, "https"),
 		rubyEntry{"working_dir", "/tmp"},
 	))
+	// Discovered hosts post their facts to the proxy, which forwards them to Foreman.
+	add("discovery.yml", moduleSettings(moduleEnabled(feat.Discovery != nil, true)))
 	for _, disabled := range []string{"puppet.yml", "puppetca.yml", "realm.yml", "facts.yml"} {
 		add(disabled, moduleSettings(false))
 	}

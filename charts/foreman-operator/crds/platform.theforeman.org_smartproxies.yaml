@@ -112,6 +112,11 @@ spec:
                     - provider
                     - subnets
                     type: object
+                  discovery:
+                    description: |-
+                      Discovery relays the facts of discovered hosts to Foreman, which needs the
+                      foreman_discovery plugin.
+                    type: object
                   dns:
                     description: DNS enables the DNS feature.
                     properties:
@@ -368,9 +373,10 @@ spec:
             - url
             type: object
             x-kubernetes-validations:
-            - message: the Execution profile does not support dhcp, tftp, or dns
+            - message: the Execution profile does not support dhcp, tftp, dns, or
+                discovery
               rule: self.profile != 'Execution' || (!has(self.features.dhcp) && !has(self.features.tftp)
-                && !has(self.features.dns))
+                && !has(self.features.dns) && !has(self.features.discovery))
             - message: the Provisioning profile does not support remoteExecutionSSH
                 or ansible
               rule: self.profile != 'Provisioning' || (!has(self.features.remoteExecutionSSH)

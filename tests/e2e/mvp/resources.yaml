@@ -10,6 +10,7 @@ spec:
   plugins:
     - foreman_ansible
     - foreman_bootdisk
+    - foreman_discovery
     - foreman_kubevirt
     - foreman_fog_proxmox
   tls:
@@ -72,6 +73,7 @@ spec:
       keySecretRef: tsig
     bmc:
       defaultProvider: ipmitool
+    discovery: {}
   storage:
     size: 1Gi
 ---

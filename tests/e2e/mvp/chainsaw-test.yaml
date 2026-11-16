@@ -88,7 +88,7 @@ spec:
             timeout: 3m
             content: |
               kubectl -n foreman-e2e exec deploy/foreman-web -c foreman -- \
-                bin/rails runner 'puts ComputeResource.providers.keys.sort.join(" ")' 2>/dev/null | tail -1
+                bin/rails runner 'puts ComputeResource.providers.keys.sort.join(" ")' 2>/dev/null | tail -1 | tr -d '\n'
             check:
               ($stdout): "Kubevirt Proxmox Vmware"
 

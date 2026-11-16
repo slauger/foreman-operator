@@ -19,6 +19,11 @@ const (
 // PausedAnnotation suspends reconciliation of a single resource when set to "true".
 const PausedAnnotation = "platform.theforeman.org/paused"
 
+// SkipUpgradeChecksAnnotation skips the upgrade preflight checks and the roll forward guard
+// of a Foreman when set to "true". It allows unsupported upgrade paths, removing plugins that
+// schedule tasks, and rolling back after a migration started, which can break the database.
+const SkipUpgradeChecksAnnotation = "platform.theforeman.org/skip-upgrade-checks"
+
 // ImageSpec selects a container image.
 type ImageSpec struct {
 	// Repository is the image repository. The operator picks a default if empty.

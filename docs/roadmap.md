@@ -10,7 +10,7 @@ The focus of the first stages is Foreman with Smart Proxy. Versions are intended
 | v0.2 | `SmartProxy` profile `Provisioning`, registration, DHCP, TFTP, DNS | A complete PXE build on k3s, driven only by custom resources | Implemented as MVP, E2E test passes on k3s with a fake VLAN |
 | v0.3 | OpenShift qualification, dedicated SCC for the proxy | The same PXE build on OpenShift | Open |
 | v0.4 | Hosts queue, profile `Execution`, plugin catalog, recurring tasks | Remote Execution works, plugin activation runs through a migration | Open |
-| v0.5 | `Release`, backup, and restore | Upgrade and restore drills pass | Open |
+| v0.5 | `Release`, backup, and restore | Upgrade and restore drills pass | Upgrade preflight, roll forward, smoke checks, and the upgrade E2E test from `0.1.0` implemented; `Release`, backup, and restore open |
 | v0.6 | Migration from existing installations | Rehearsal with a production-sized copy | Open |
 | v0.7+ | Katello with `Candlepin`, `Pulp`, content proxies | Sync and host registration work | Open |
 

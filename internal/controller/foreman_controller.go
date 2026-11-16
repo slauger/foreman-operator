@@ -39,12 +39,16 @@ const (
 
 const requeueShort = 10 * time.Second
 
+// foremanVersionAnnotation on a migration Job records the Foreman version it migrates to.
+const foremanVersionAnnotation = "platform.theforeman.org/foreman-version"
+
 // ForemanReconciler reconciles a Foreman object.
 type ForemanReconciler struct {
 	client.Client
 	Scheme       *runtime.Scheme
 	Images       Images
 	Capabilities Capabilities
+	NewAPI       ForemanAPIFactory
 }
 
 // +kubebuilder:rbac:groups=platform.theforeman.org,resources=foremen,verbs=get;list;watch;update;patch
@@ -132,16 +136,50 @@ func (r *ForemanReconciler) reconcile(ctx context.Context, f *foremanv1alpha1.Fo
 	}
 
 	hash := migrationHash(f, r.Images)
-	if f.Status.AppliedMigrationHash != hash {
-		done, err := r.migrate(ctx, f, hash)
+	if pending := f.Status.PendingMigrationHash; pending != "" && pending != hash {
+		started, err := r.migrationStarted(ctx, f, pending)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
-		if !done {
+		switch {
+		case !started, skipUpgradeChecks(f) && hash == f.Status.AppliedMigrationHash:
+			// No migration ran for it yet, or the user accepts the risk of rolling back.
+			f.Status.PendingMigrationHash = ""
+		case hash == f.Status.AppliedMigrationHash:
+			message := fmt.Sprintf("the migration Job %s started, so the database may be partly migrated and rolling back is refused; "+
+				"set a fixed image to roll forward, or restore the database and set the annotation %s",
+				migrationJobName(f, pending), foremanv1alpha1.SkipUpgradeChecksAnnotation)
+			f.Status.Phase = foremanv1alpha1.ForemanPhaseRollForwardRequired
+			setCondition(&f.Status.Conditions, f.Generation, foremanv1alpha1.ConditionDegraded, metav1.ConditionTrue, reasonRollForward, message)
+			setCondition(&f.Status.Conditions, f.Generation, foremanv1alpha1.ConditionReady, metav1.ConditionFalse, reasonRollForward, message)
+			return ctrl.Result{}, nil
+		}
+	}
+	if f.Status.AppliedMigrationHash != hash {
+		if f.Status.PendingMigrationHash != hash {
+			version := r.preflight(ctx, f, hash)
+			if version == "" {
+				if f.Status.Phase == foremanv1alpha1.ForemanPhaseBlocked {
+					return ctrl.Result{RequeueAfter: time.Minute}, nil
+				}
+				return ctrl.Result{RequeueAfter: requeueShort}, nil
+			}
+			log.Info("upgrade preflight passed", "hash", hash, "version", version)
+			f.Status.PendingMigrationHash = hash
+		}
+		version, err := r.migrate(ctx, f, hash)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		if version == "" {
 			return ctrl.Result{RequeueAfter: requeueShort}, nil
 		}
-		log.Info("database migrated", "hash", hash)
+		log.Info("database migrated", "hash", hash, "version", version)
 		f.Status.AppliedMigrationHash = hash
+		f.Status.PendingMigrationHash = ""
+		f.Status.ForemanVersion = version
+		f.Status.AppliedPlugins = enabledPlugins(f)
+		setCondition(&f.Status.Conditions, f.Generation, foremanv1alpha1.ConditionDegraded, metav1.ConditionFalse, reasonReconciled, "")
 	}
 
 	ready, err := r.ensureWorkloads(ctx, f, configChecksum, frontendChecksum)
@@ -158,6 +196,11 @@ func (r *ForemanReconciler) reconcile(ctx context.Context, f *foremanv1alpha1.Fo
 	f.Status.Phase = foremanv1alpha1.ForemanPhaseRunning
 	setCondition(&f.Status.Conditions, f.Generation, foremanv1alpha1.ConditionProgressing, metav1.ConditionFalse, reasonReconciled, "")
 	setCondition(&f.Status.Conditions, f.Generation, foremanv1alpha1.ConditionReady, metav1.ConditionTrue, reasonReconciled, "Foreman is running")
+	// SmartProxies refresh their features only once Foreman is ready, so the smoke checks run
+	// after the Ready condition is set.
+	if f.Status.VerifiedMigrationHash != f.Status.AppliedMigrationHash && !r.verify(ctx, f) {
+		return ctrl.Result{RequeueAfter: requeueShort}, nil
+	}
 	return ctrl.Result{RequeueAfter: resyncPeriod}, nil
 }
 
@@ -314,39 +357,46 @@ func (r *ForemanReconciler) applyDeployment(ctx context.Context, f *foremanv1alp
 	return d, err
 }
 
-// migrate stops all writers, runs the migration Job for hash, and reports completion.
-func (r *ForemanReconciler) migrate(ctx context.Context, f *foremanv1alpha1.Foreman, hash string) (bool, error) {
+// migrate stops all writers, runs the migration Job for hash, and returns the Foreman version
+// it migrated to once the Job completed.
+func (r *ForemanReconciler) migrate(ctx context.Context, f *foremanv1alpha1.Foreman, hash string) (string, error) {
 	f.Status.Phase = foremanv1alpha1.ForemanPhaseMigrating
 	setCondition(&f.Status.Conditions, f.Generation, foremanv1alpha1.ConditionReady, metav1.ConditionFalse, reasonMigrating, "database migration in progress")
 
 	running, err := r.stopWriters(ctx, f)
 	if err != nil {
-		return false, err
+		return "", err
 	}
 	if running > 0 {
 		setCondition(&f.Status.Conditions, f.Generation, foremanv1alpha1.ConditionProgressing, metav1.ConditionTrue, reasonStoppingWriters,
 			fmt.Sprintf("waiting for %d Foreman pods to stop before migrating", running))
-		return false, nil
+		return "", nil
 	}
 
 	job := &batchv1.Job{}
 	err = r.Get(ctx, client.ObjectKey{Namespace: f.Namespace, Name: migrationJobName(f, hash)}, job)
 	if apierrors.IsNotFound(err) {
 		if err := r.deleteOldMigrations(ctx, f); err != nil {
-			return false, err
+			return "", err
+		}
+		// The preflight Job of this hash read the version before the writers stopped.
+		version, err := r.imageVersion(ctx, f, hash)
+		if err != nil || version == "" {
+			return "", err
 		}
 		job = migrationJob(f, r.Images, r.Capabilities, hash)
+		job.Annotations = map[string]string{foremanVersionAnnotation: version}
 		if err := controllerutil.SetControllerReference(f, job, r.Scheme); err != nil {
-			return false, err
+			return "", err
 		}
 		if err := r.Create(ctx, job); err != nil {
-			return false, err
+			return "", err
 		}
 		setCondition(&f.Status.Conditions, f.Generation, foremanv1alpha1.ConditionProgressing, metav1.ConditionTrue, reasonMigrating, "migration Job created")
-		return false, nil
+		return "", nil
 	}
 	if err != nil {
-		return false, err
+		return "", err
 	}
 
 	for _, c := range job.Status.Conditions {
@@ -355,16 +405,20 @@ func (r *ForemanReconciler) migrate(ctx context.Context, f *foremanv1alpha1.Fore
 		}
 		switch c.Type {
 		case batchv1.JobComplete:
-			return true, nil
+			if version := job.Annotations[foremanVersionAnnotation]; version != "" {
+				return version, nil
+			}
+			// Created by an operator version that did not record the version.
+			return r.imageVersion(ctx, f, hash)
 		case batchv1.JobFailed:
-			f.Status.Phase = foremanv1alpha1.ForemanPhaseFailed
+			f.Status.Phase = foremanv1alpha1.ForemanPhaseRollForwardRequired
 			setCondition(&f.Status.Conditions, f.Generation, foremanv1alpha1.ConditionDegraded, metav1.ConditionTrue, reasonMigrationFailed,
-				fmt.Sprintf("migration Job %s failed, see its logs; delete the Job to retry", job.Name))
-			return false, nil
+				fmt.Sprintf("migration Job %s failed and the database may be partly migrated; see its logs, then delete the Job to retry or set a fixed image to roll forward", job.Name))
+			return "", nil
 		}
 	}
 	setCondition(&f.Status.Conditions, f.Generation, foremanv1alpha1.ConditionProgressing, metav1.ConditionTrue, reasonMigrating, "migration Job is running")
-	return false, nil
+	return "", nil
 }
 
 // stopWriters scales all Foreman Deployments to zero and returns the number of pods left.
@@ -394,11 +448,24 @@ func (r *ForemanReconciler) stopWriters(ctx context.Context, f *foremanv1alpha1.
 	}
 	running := 0
 	for _, p := range pods.Items {
-		if p.Labels[labelComponent] != componentMigration {
+		if p.Labels[labelComponent] == componentMigration || p.Labels[labelComponent] == componentPreflight {
+			continue
+		}
+		if p.Status.Phase != corev1.PodSucceeded && p.Status.Phase != corev1.PodFailed {
 			running++
 		}
 	}
 	return running, nil
+}
+
+// migrationStarted reports whether the migration Job for hash exists, so the database may have
+// been changed for it.
+func (r *ForemanReconciler) migrationStarted(ctx context.Context, f *foremanv1alpha1.Foreman, hash string) (bool, error) {
+	err := r.Get(ctx, client.ObjectKey{Namespace: f.Namespace, Name: migrationJobName(f, hash)}, &batchv1.Job{})
+	if apierrors.IsNotFound(err) {
+		return false, nil
+	}
+	return err == nil, err
 }
 
 func (r *ForemanReconciler) deleteOldMigrations(ctx context.Context, f *foremanv1alpha1.Foreman) error {

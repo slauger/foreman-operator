@@ -40,6 +40,18 @@ chainsaw test --config tests/e2e/chainsaw-config.yaml tests/e2e/mvp
 | The BMC provider finds ipmitool | `ipmitool -V` runs in the proxy container | Passed |
 | Deleting the Smart Proxy removes it from Foreman | The finalizer unregisters the proxy | Passed |
 
+## Upgrade test
+
+`tests/e2e/upgrade.sh` deletes the namespace `foreman-e2e`, installs the released chart `FROM_VERSION` (default `0.1.0`) from the registry with `setup.sh`, creates a Foreman with Remote Execution and an Execution proxy from `tests/e2e/upgrade/resources.yaml`, and creates a domain through the API. It then upgrades the operator to `IMAGE_TAG` with `setup.sh` and waits until the migration completed and `Verified` is `True`. It checks `status.foremanVersion`, that the domain still exists, and that the proxy refreshed its features.
+
+```bash
+IMAGE_TAG=develop tests/e2e/upgrade.sh
+IMAGE_TAG=develop tests/e2e/setup.sh
+chainsaw test --config tests/e2e/chainsaw-config.yaml tests/e2e/mvp
+```
+
+Run `setup.sh` again before the MVP test, since the upgrade test leaves its own resources in the namespace.
+
 Independent of the Chainsaw steps, the OAuth signature of the operator was verified against the real Foreman on the cluster: correctly signed requests are accepted and wrongly signed requests are rejected. With the frontend sidecar, the full test passed on e2e-openvox both against an installation upgraded from the separate `Frontend` and from scratch, with a new namespace and an empty database.
 
 ## PXE lab

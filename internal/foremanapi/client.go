@@ -130,6 +130,37 @@ func (c *Client) DeleteSmartProxy(ctx context.Context, id int64) error {
 	return err
 }
 
+// Status is the answer of the status endpoint.
+type Status struct {
+	Result  string `json:"result"`
+	Version string `json:"version"`
+}
+
+// Status returns the version of the running Foreman.
+func (c *Client) Status(ctx context.Context) (*Status, error) {
+	var status Status
+	if err := c.do(ctx, http.MethodGet, "/api/v2/status", nil, nil, &status); err != nil {
+		return nil, err
+	}
+	return &status, nil
+}
+
+// CountTasks returns the number of foreman-tasks tasks matching search. It returns ErrNotFound
+// if foreman-tasks is not enabled.
+func (c *Client) CountTasks(ctx context.Context, search string) (int, error) {
+	query := url.Values{}
+	query.Set("search", search)
+	query.Set("per_page", "1")
+
+	var list struct {
+		Subtotal int `json:"subtotal"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/foreman_tasks/api/tasks", query, nil, &list); err != nil {
+		return 0, err
+	}
+	return list.Subtotal, nil
+}
+
 func (c *Client) do(ctx context.Context, method, path string, query url.Values, body, out any) error {
 	target := c.baseURL.JoinPath(path)
 	public := c.publicURL.JoinPath(path)

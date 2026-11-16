@@ -8,8 +8,17 @@ E2E_EXTERNAL_IP="${E2E_EXTERNAL_IP:-188.245.216.177}"
 IMAGE_TAG="${IMAGE_TAG:?IMAGE_TAG must name the image tag to test}"
 # OPERATOR=local skips the in-cluster operator, e.g. for "make run" during development.
 OPERATOR="${OPERATOR:-helm}"
+# CHART_VERSION installs a released chart from the registry instead of the checkout.
+CHART_VERSION="${CHART_VERSION:-}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+CHART="${ROOT_DIR}/charts/foreman-operator"
+if [[ -n "${CHART_VERSION}" ]]; then
+    chart_dir="$(mktemp -d)"
+    trap 'rm -rf "${chart_dir}"' EXIT
+    helm pull oci://ghcr.io/slauger/charts/foreman-operator --version "${CHART_VERSION}" --untar --untardir "${chart_dir}"
+    CHART="${chart_dir}/foreman-operator"
+fi
 export E2E_NAMESPACE E2E_FQDN E2E_EXTERNAL_IP
 
 # The connection to the API server can drop, and every step below is safe to repeat.
@@ -58,9 +67,9 @@ retry kubectl -n "${E2E_NAMESPACE}" apply -f "${SCRIPT_DIR}/setup/prerequisites.
 envsubst < "${SCRIPT_DIR}/setup/gateway.yaml" | retry kubectl -n "${E2E_NAMESPACE}" apply -f -
 
 # Helm installs CRDs only once, so they are applied explicitly.
-retry kubectl apply --server-side --force-conflicts -f "${ROOT_DIR}/charts/foreman-operator/crds/"
+retry kubectl apply --server-side --force-conflicts -f "${CHART}/crds/"
 if [[ "${OPERATOR}" == "helm" ]]; then
-    retry helm upgrade --install foreman-operator "${ROOT_DIR}/charts/foreman-operator" \
+    retry helm upgrade --install foreman-operator "${CHART}" \
         --namespace foreman-operator --create-namespace \
         --set image.tag="${IMAGE_TAG}" \
         --set image.pullPolicy=Always \

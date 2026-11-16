@@ -9,6 +9,7 @@ import (
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="FQDN",type=string,JSONPath=`.spec.fqdn`
+// +kubebuilder:printcolumn:name="Version",type=string,JSONPath=`.status.foremanVersion`
 // +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
@@ -148,8 +149,12 @@ type DynflowSpec struct {
 }
 
 // ForemanPhase is the lifecycle phase of a Foreman.
-// +kubebuilder:validation:Enum=Pending;Migrating;Progressing;Running;Failed
+// +kubebuilder:validation:Enum=Pending;Migrating;Progressing;Running;Blocked;RollForwardRequired;Failed
 type ForemanPhase string
+
+// ConditionVerified indicates that the smoke checks after the last migration passed: the
+// Foreman API reports the expected version and every SmartProxy refreshed its features.
+const ConditionVerified = "Verified"
 
 // Foreman lifecycle phases.
 const (
@@ -157,7 +162,13 @@ const (
 	ForemanPhaseMigrating   ForemanPhase = "Migrating"
 	ForemanPhaseProgressing ForemanPhase = "Progressing"
 	ForemanPhaseRunning     ForemanPhase = "Running"
-	ForemanPhaseFailed      ForemanPhase = "Failed"
+	// ForemanPhaseBlocked means the upgrade preflight refused the change. The previous version
+	// keeps running.
+	ForemanPhaseBlocked ForemanPhase = "Blocked"
+	// ForemanPhaseRollForwardRequired means a migration failed or a rollback was requested after
+	// a migration started. Foreman stays stopped until the spec names a fixed image.
+	ForemanPhaseRollForwardRequired ForemanPhase = "RollForwardRequired"
+	ForemanPhaseFailed              ForemanPhase = "Failed"
 )
 
 // ForemanStatus defines the observed state of Foreman.
@@ -172,6 +183,19 @@ type ForemanStatus struct {
 	// AppliedMigrationHash identifies the image and plugin set the database was last migrated for.
 	// +optional
 	AppliedMigrationHash string `json:"appliedMigrationHash,omitempty"`
+	// PendingMigrationHash identifies a migration that started but has not completed. The
+	// database may be partly migrated for it.
+	// +optional
+	PendingMigrationHash string `json:"pendingMigrationHash,omitempty"`
+	// VerifiedMigrationHash identifies the last migration whose smoke checks passed.
+	// +optional
+	VerifiedMigrationHash string `json:"verifiedMigrationHash,omitempty"`
+	// ForemanVersion is the Foreman version the database was last migrated to.
+	// +optional
+	ForemanVersion string `json:"foremanVersion,omitempty"`
+	// AppliedPlugins lists the plugins, with dependencies, the database was last migrated for.
+	// +optional
+	AppliedPlugins []string `json:"appliedPlugins,omitempty"`
 
 	// Conditions represent the latest observations.
 	// +listType=map

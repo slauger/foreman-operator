@@ -16,6 +16,9 @@ spec:
     - jsonPath: .spec.fqdn
       name: FQDN
       type: string
+    - jsonPath: .status.foremanVersion
+      name: Version
+      type: string
     - jsonPath: .status.phase
       name: Phase
       type: string
@@ -541,6 +544,12 @@ spec:
                 description: AppliedMigrationHash identifies the image and plugin
                   set the database was last migrated for.
                 type: string
+              appliedPlugins:
+                description: AppliedPlugins lists the plugins, with dependencies,
+                  the database was last migrated for.
+                items:
+                  type: string
+                type: array
               conditions:
                 description: Conditions represent the latest observations.
                 items:
@@ -601,11 +610,20 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              foremanVersion:
+                description: ForemanVersion is the Foreman version the database was
+                  last migrated to.
+                type: string
               observedGeneration:
                 description: ObservedGeneration is the generation last processed by
                   the controller.
                 format: int64
                 type: integer
+              pendingMigrationHash:
+                description: |-
+                  PendingMigrationHash identifies a migration that started but has not completed. The
+                  database may be partly migrated for it.
+                type: string
               phase:
                 description: Phase is the current lifecycle phase.
                 enum:
@@ -613,7 +631,13 @@ spec:
                 - Migrating
                 - Progressing
                 - Running
+                - Blocked
+                - RollForwardRequired
                 - Failed
+                type: string
+              verifiedMigrationHash:
+                description: VerifiedMigrationHash identifies the last migration whose
+                  smoke checks passed.
                 type: string
             type: object
         type: object

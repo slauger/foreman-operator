@@ -1,7 +1,7 @@
 # Provisioning
 
 !!! note "Status"
-    Implemented as MVP for the `Provisioning` profile with dnsmasq. The pod layout and the dnsmasq privileges were verified in the [PXE lab](../development/testing.md#pxe-lab) with manual manifests. The operator-built pod, registration, DHCP, TFTP, and DNS are covered by the E2E test but have not been run on a cluster yet. No real host has been built.
+    Implemented for the `Provisioning` profile with dnsmasq. The E2E test covers registration, DHCP, TFTP, DNS, BMC, and Discovery on a fake VLAN, a node-local bridge. No real host has been built, and no real VLAN, NIC, or PXE firmware has been tested.
 
 ## Flow
 
@@ -62,7 +62,7 @@ Provisioning networks use direct L2, without DHCP relays. Multus gives the pod p
 
 - The Deployment uses `Recreate`. Two pods must never hold the same static IP during a rollout.
 - The supervisor assigns the address to `net1`, so the NetworkAttachmentDefinition can use `"ipam": {}`. dnsmasq binds to `net1` only.
-- Trunk the VLAN to every node that may run the pod, and restrict the pod with a node selector. The operator does not expose a node selector yet.
+- Trunk the VLAN to every node that may run the pod. The operator does not expose a node selector yet, see the [roadmap](../roadmap.md#towards-a-beta).
 - Virtual nodes usually need the hypervisor to permit macvlan traffic.
 - Standard NetworkPolicy does not apply to secondary interfaces. Treat the attached network as a separate trust zone and add MultiNetworkPolicy where the CNI supports it.
 - Add routes for the provisioning subnet through the secondary interface and check `rp_filter`.

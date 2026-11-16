@@ -37,7 +37,7 @@ Required PostgreSQL extensions have not been audited yet. `postInitSQL` can add 
 
 ## Backup
 
-Use CloudNativePG continuous backups and `ScheduledBackup`. A restore also needs the secrets listed in [Upgrades](upgrades.md#backup-and-restore).
+Use CloudNativePG continuous backups and `ScheduledBackup`. A restore also needs `<name>-secrets` and the internal CA. See [Backup and Restore](../guides/backup-restore.md).
 
 ## Valkey
 

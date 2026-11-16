@@ -15,9 +15,9 @@ A Kubernetes Operator that maps [Foreman](https://theforeman.org/) and Smart Pro
 
 | Kind | State | Purpose |
 |---|---|---|
-| **Foreman** | Implemented | FQDN, image, database and Valkey references; web with the frontend sidecar for mutual TLS and exposure, Dynflow, and migrations |
+| **Foreman** | Implemented | FQDN, image, plugins, database and Valkey references; web with the frontend sidecar, Dynflow, recurring tasks, and checked migrations |
 | **SmartProxy** | Implemented for `Provisioning` and `Execution` | One registered proxy with networks and features |
-| **Release** | Planned | Compatible image sets, ordered upgrades |
+| **Release** | Planned | Compatible image sets |
 | **Candlepin** | Planned | Subscription service for Katello |
 | **Pulp** | Planned | Content service for Katello |
 
@@ -25,11 +25,22 @@ Start with [Getting Started](guides/getting-started.md) to install the operator,
 
 ## What is verified
 
-On a k3s cluster with cert-manager, CloudNativePG, Multus, and Envoy Gateway, the Chainsaw E2E test passed from an empty namespace: the Foreman migration, the web and Dynflow workloads, the frontend sidecar through a Gateway API TLSRoute with Puma reachable only over its Unix socket, the Smart Proxy registration with the features BMC, DHCP, DNS, Logs, Templates, and TFTP, a DHCP reservation that reaches a client on a fake VLAN and survives a new pod, a TFTP download of the boot loader, a DNS record in BIND through nsupdate, and unregistration on delete. Not tested: a real VLAN, a real NIC, real PXE firmware, and OpenShift.
+The tests run on a single-node k3s cluster with cert-manager, CloudNativePG, Multus, and Envoy Gateway, see [Testing](development/testing.md).
+
+| Area | Verified |
+|---|---|
+| Foreman | Migration from an empty database, web and Dynflow, recurring task CronJobs, the frontend sidecar through a Gateway API TLSRoute with Puma reachable only over its Unix socket |
+| Plugins | Only the enabled plugins load; a boot ISO from `foreman_bootdisk`; the KubeVirt, Proxmox, and VMware compute resource providers |
+| Provisioning proxy | Registration with the features BMC, DHCP, DNS, Discovery, Logs, TFTP, and Templates; a DHCP reservation that reaches a client on a fake VLAN and survives a new pod; a TFTP download of the boot loader; a DNS record in BIND through nsupdate; a discovered host that reaches Foreman through the proxy; unregistration on delete |
+| Execution proxy | A Remote Execution job and an Ansible job on a target over SSH |
+| Upgrades | From the released `0.1.0` chart to the current images, with data and proxy registrations kept and the smoke checks passing |
+| Restore | Database, secrets, and proxy registrations restored in the documented order, with encrypted columns readable |
+
+Not tested: a real VLAN, a real NIC, real PXE firmware, a complete host build, and OpenShift.
 
 ## Scope
 
-The first stage is the base deployment: Foreman with Smart Proxies for PXE, DHCP, TFTP, DNS, and BMC. [Katello](concepts/katello.md) is a later stage.
+The first stage is the base deployment: Foreman with Smart Proxies for provisioning and Remote Execution. [Katello](concepts/katello.md) is a later stage.
 
 ## License
 

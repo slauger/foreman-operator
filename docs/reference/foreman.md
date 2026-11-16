@@ -70,6 +70,7 @@ There is no separate replica count. `web.replicas` scales Puma and the frontend 
 | HTTPRoute | `<name>` | Yes | Exposure `TLSRoute` with `httpSectionName` set. Backend `<name>-web` port 80 |
 | Job | `<name>-preflight-<hash>` | Yes | Reads the Foreman version from `/usr/share/foreman/VERSION` of the new image into its termination message |
 | Job | `<name>-migrate-<hash>` | Yes | First eight characters of the migration hash. The annotation `platform.theforeman.org/foreman-version` records the version it migrates to |
+| CronJob | `<name>-cron-hourly`, `-daily`, `-weekly`, `-monthly` | Yes | `bin/rails cron:<period>` on the schedules of `/etc/cron.d/foreman` in the Foreman RPM: `30 * * * *`, `0 2 * * *`, `0 5 * * 0`, `0 3 1 * *`, in the time zone of the kube-controller-manager. Runs never overlap, a run missed by more than ten minutes is skipped. Suspended while a migration stops the writers |
 | Deployment | `<name>-web` | Yes | Containers `foreman` (Puma, about 1.5 GiB memory limit per worker, 1 to 16 workers) and `httpd` (Apache on ports 8443 and 8080) |
 | Deployment | `<name>-dynflow-orchestrator` | Yes | Always one replica, strategy `Recreate` |
 | Deployment | `<name>-dynflow-worker` | Yes | `dynflow.workerReplicas` |

@@ -29,7 +29,7 @@ Some concepts and ideas were adopted from [theforeman/foreman-kubernetes](https:
 
 <!-- features: keep in sync with docs/_snippets/features.md -->
 - 🌐 **Foreman on Kubernetes** - Web and Dynflow as native workloads, declared through a `Foreman` resource
-- 🧱 **Migration before Rollout** - Writers are stopped, a Job migrates the database, then the new version rolls out
+- 🧱 **Checked Upgrades** - A preflight refuses skipped releases and waits for running tasks, writers stop while a Job migrates the database, and smoke checks verify the new version; no rollback onto a partly migrated database
 - 🛰️ **Smart Proxy as a Resource** - Each proxy is one `SmartProxy`, registered in Foreman automatically through OAuth, for provisioning or for Remote Execution and Ansible over SSH
 - 🥾 **Bare-Metal Provisioning** - DHCP and TFTP through dnsmasq, DNS through nsupdate, on direct L2 networks through Multus
 - 🔐 **cert-manager Integration** - Server, client, and proxy certificates requested from cert-manager issuers

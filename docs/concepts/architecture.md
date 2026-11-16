@@ -1,7 +1,7 @@
 # Architecture
 
 !!! note "Status"
-    The `Foreman` and `SmartProxy` controllers are implemented as an MVP. The frontend is part of `Foreman` and runs in the web pods. Recurring tasks, `Release`, and the Katello kinds are target design. Rows and sections below say which parts are planned.
+    The `Foreman` and `SmartProxy` controllers are implemented as an MVP. The frontend is part of `Foreman` and runs in the web pods, and the recurring tasks run as CronJobs. `Release` and the Katello kinds are target design. Rows and sections below say which parts are planned.
 
 ## Overview
 
@@ -70,7 +70,7 @@ flowchart TD
 | Dynflow hosts queue | Deployment | 0 by default | Sidekiq with the hosts queue configuration | Implemented |
 | Foreman migration | Job | n/a | `db:migrate`, `db:seed`, and `upgrade:run` | Implemented |
 | Smart Proxy | Deployment, Recreate | 1 | See [Smart Proxy](smart-proxy.md) | Implemented for `Provisioning` |
-| Recurring tasks | CronJob | n/a | `foreman-rake cron:hourly`, daily, weekly, monthly | Planned |
+| Recurring tasks | CronJob | n/a | `rails cron:hourly`, daily, weekly, monthly | Implemented |
 
 The process split follows the `foremanctl` deployment. Apache runs as a sidecar of Puma rather than as a separate Deployment, so Puma has no TCP listener and no other pod can forge the client certificate headers. Mutual TLS between a separate frontend and Puma would need extra certificates and still leave a port open. The trade-off is that frontend and web scale 1:1 and a frontend change restarts the web pods. See [Traffic Flow](traffic-flow.md#why-a-sidecar). Puma workers are derived from the memory limit of the web container, about 1.5 GiB per worker, between 1 and 16.
 

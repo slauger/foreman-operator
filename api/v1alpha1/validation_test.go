@@ -81,7 +81,7 @@ func TestForemanValidation(t *testing.T) {
 		},
 		{
 			name:    "plugin outside the catalog",
-			mutate:  func(f *Foreman) { f.Spec.Plugins = []ForemanPlugin{"foreman_bootdisk"} },
+			mutate:  func(f *Foreman) { f.Spec.Plugins = []ForemanPlugin{"foreman_openscap"} },
 			wantErr: "spec.plugins",
 		},
 		{

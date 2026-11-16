@@ -146,7 +146,7 @@ func TestForemanInstallMigratesBeforeDeploying(t *testing.T) {
 	hash := migrationHash(f, r.Images)
 	jobName := migrationJobName(f, hash)
 	job := mustGet(t, c, jobName, &batchv1.Job{})
-	if !strings.Contains(strings.Join(job.Spec.Template.Spec.Containers[0].Command, " "), "upgrade:run") {
+	if cmd := strings.Join(job.Spec.Template.Spec.Containers[0].Command, " "); !strings.Contains(cmd, "upgrade:run") || !strings.Contains(cmd, "database_seed") {
 		t.Errorf("migration command = %v", job.Spec.Template.Spec.Containers[0].Command)
 	}
 	if err := c.Get(context.Background(), client.ObjectKey{Namespace: testNamespace, Name: "prod-web"}, &appsv1.Deployment{}); err == nil {

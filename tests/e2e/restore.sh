@@ -21,9 +21,11 @@ backup_dir="$(mktemp -d)"
 trap 'rm -rf "${backup_dir}"' EXIT
 ns=(kubectl -n "${E2E_NAMESPACE}")
 
+# The runner has no user, so the taxonomy scope of Foreman would hide the source.
 ldap_password() {
-    "${ns[@]}" exec deploy/foreman-web -c foreman -- \
-        bin/rails runner 'print AuthSourceLdap.find_by(name: "restore-drill")&.account_password' 2>/dev/null | tail -1
+    "${ns[@]}" exec deploy/foreman-web -c foreman -- bin/rails runner \
+        'puts "PW=#{AuthSourceLdap.unscoped.find_by(name: "restore-drill")&.account_password}"' 2>/dev/null \
+        | sed -n 's/^PW=//p'
 }
 
 echo "== install ${IMAGE_TAG} in an empty namespace and create data"

@@ -31,6 +31,26 @@ spec:
             selector: app.kubernetes.io/instance=foreman
             tail: 50
 
+    - name: Recurring tasks run as CronJobs
+      try:
+        - script:
+            content: |
+              set -e
+              kubectl -n foreman-e2e get cronjob -l app.kubernetes.io/instance=foreman \
+                -o jsonpath='{range .items[*]}{.metadata.name}={.spec.suspend} {end}'
+            check:
+              ($stdout): "foreman-cron-daily=false foreman-cron-hourly=false foreman-cron-monthly=false foreman-cron-weekly=false "
+        - script:
+            timeout: 10m
+            content: |
+              set -e
+              kubectl -n foreman-e2e delete job e2e-cron-hourly --ignore-not-found --wait=true
+              kubectl -n foreman-e2e create job e2e-cron-hourly --from=cronjob/foreman-cron-hourly
+              kubectl -n foreman-e2e wait --for=condition=Complete job/e2e-cron-hourly --timeout=540s
+              kubectl -n foreman-e2e logs job/e2e-cron-hourly | tail -5
+            check:
+              ($error == null): true
+
     - name: Puma has no TCP listener, only the frontend ports are open
       try:
         - script:

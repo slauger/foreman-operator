@@ -57,6 +57,7 @@ type ForemanReconciler struct {
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete;deletecollection
+// +kubebuilder:rbac:groups=batch,resources=cronjobs,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=cert-manager.io,resources=certificates,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile drives a Foreman towards its spec. Database migrations run in a Job while all
@@ -167,6 +168,9 @@ func (r *ForemanReconciler) reconcile(ctx context.Context, f *foremanv1alpha1.Fo
 			log.Info("upgrade preflight passed", "hash", hash, "version", version)
 			f.Status.PendingMigrationHash = hash
 		}
+		if err := r.ensureCronJobs(ctx, f, true); err != nil {
+			return ctrl.Result{}, fmt.Errorf("recurring tasks: %w", err)
+		}
 		version, err := r.migrate(ctx, f, hash)
 		if err != nil {
 			return ctrl.Result{}, err
@@ -191,6 +195,10 @@ func (r *ForemanReconciler) reconcile(ctx context.Context, f *foremanv1alpha1.Fo
 		setCondition(&f.Status.Conditions, f.Generation, foremanv1alpha1.ConditionProgressing, metav1.ConditionTrue, reasonRollingOut, "workloads are rolling out")
 		setCondition(&f.Status.Conditions, f.Generation, foremanv1alpha1.ConditionReady, metav1.ConditionFalse, reasonRollingOut, "workloads are rolling out")
 		return ctrl.Result{RequeueAfter: requeueShort}, nil
+	}
+
+	if err := r.ensureCronJobs(ctx, f, false); err != nil {
+		return ctrl.Result{}, fmt.Errorf("recurring tasks: %w", err)
 	}
 
 	f.Status.Phase = foremanv1alpha1.ForemanPhaseRunning
@@ -482,6 +490,7 @@ func (r *ForemanReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&foremanv1alpha1.Foreman{}).
 		Owns(&appsv1.Deployment{}).
 		Owns(&batchv1.Job{}).
+		Owns(&batchv1.CronJob{}).
 		Owns(&corev1.Service{}).
 		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Secret{}).

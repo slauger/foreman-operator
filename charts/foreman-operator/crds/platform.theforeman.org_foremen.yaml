@@ -402,6 +402,8 @@ spec:
                   - foreman_ansible
                   - foreman_bootdisk
                   - foreman_discovery
+                  - foreman_fog_proxmox
+                  - foreman_kubevirt
                   - foreman_puppet
                   - foreman_remote_execution
                   - foreman_templates

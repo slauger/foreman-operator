@@ -104,4 +104,3 @@ While the preflight runs or blocks, the previous version keeps running.
 --8<-- "config/samples/foreman.yaml"
 ```
 
-The sample lists `foreman_discovery`, which the default Foreman image does not contain yet.

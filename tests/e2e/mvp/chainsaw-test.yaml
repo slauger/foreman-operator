@@ -80,7 +80,17 @@ spec:
               curl -sfk -u "admin:${password}" "https://e2e-openvox.lnxlabs.de/api/v2/plugins?per_page=100" \
                 | jq -r '.results[].name' | grep '^foreman' | LC_ALL=C sort | tr '\n' ' '
             check:
-              ($stdout): "foreman-tasks foreman_ansible foreman_bootdisk foreman_remote_execution "
+              ($stdout): "foreman-tasks foreman_ansible foreman_bootdisk foreman_fog_proxmox foreman_kubevirt foreman_remote_execution "
+
+    - name: The compute resource providers are available
+      try:
+        - script:
+            timeout: 3m
+            content: |
+              kubectl -n foreman-e2e exec deploy/foreman-web -c foreman -- \
+                bin/rails runner 'puts ComputeResource.providers.keys.sort.join(" ")' 2>/dev/null | tail -1
+            check:
+              ($stdout): "Kubevirt Proxmox Vmware"
 
     - name: Bootdisk builds a generic boot ISO
       try:

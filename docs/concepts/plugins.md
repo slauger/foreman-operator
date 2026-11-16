@@ -16,6 +16,7 @@
 | Plugin | Also enables |
 |---|---|
 | `foreman_ansible` | `foreman_remote_execution`, `foreman-tasks` |
+| `foreman_bootdisk` | |
 | `foreman_discovery` | |
 | `foreman_puppet` | |
 | `foreman_remote_execution` | `foreman-tasks` |
@@ -26,9 +27,12 @@ Not in the catalog:
 
 | Plugin | Reason |
 |---|---|
-| `foreman_bootdisk` | Needs `/usr/bin/isohybrid`, which UBI 9 lacks |
 | `foreman_openscap` | Needs `scap-security-guide`, which UBI 9 lacks |
 | `katello` | See [Katello](katello.md) |
+
+## Boot disks
+
+`foreman_bootdisk` builds boot ISO images in the web pods. Its tools are in RHEL 9 but not in UBI 9: `syslinux` with `isohybrid`, `ipxe-bootimgs-x86`, `xorriso`, `dosfstools`, and `mtools` come from signed CentOS Stream 9 packages, with their other dependencies from UBI 9. The EFI boot image needs only the GRUB 2 and shim binaries, so `grubx64.efi`, `shimx64.efi`, and `mmx64.efi` from CentOS Stream 9 are copied to `/var/lib/foreman/bootdisk`, the default "Grub2 directory". The plugin itself is installed without the `grub2-efi-x64` dependency. The ISO is built in `/usr/share/foreman/tmp`, an `emptyDir`.
 
 ## Extra plugins
 

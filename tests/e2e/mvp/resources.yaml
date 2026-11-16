@@ -9,6 +9,7 @@ spec:
     pullPolicy: Always
   plugins:
     - foreman_ansible
+    - foreman_bootdisk
   tls:
     issuerRef:
       name: foreman-internal-ca

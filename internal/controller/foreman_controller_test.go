@@ -17,7 +17,39 @@ import (
 )
 
 func newForemanReconciler(c client.Client) *ForemanReconciler {
-	return &ForemanReconciler{Client: c, Scheme: c.Scheme(), Images: DefaultImages("test"), Capabilities: allCapabilities}
+	return &ForemanReconciler{Client: c, Scheme: c.Scheme(), Images: DefaultImages("test"), Capabilities: allCapabilities, NewAPI: newFakeForemanAPI().factory}
+}
+
+// completePreflight finishes the preflight Job of the current spec with the given version.
+func completePreflight(t *testing.T, r *ForemanReconciler, f *foremanv1alpha1.Foreman, version string) {
+	t.Helper()
+	name := preflightJobName(f, migrationHash(f, r.Images))
+	completeJob(t, r.Client, name, batchv1.JobComplete)
+	pod := &corev1.Pod{
+		Name: name + "-x", Namespace: testNamespace,
+		Labels: map[string]string{batchv1.JobNameLabel: name, labelName: foremanAppName, labelInstance: f.Name, labelComponent: componentPreflight},
+	}
+	if err := r.Create(context.Background(), pod); err != nil {
+		t.Fatal(err)
+	}
+	pod.Status.Phase = corev1.PodSucceeded
+	pod.Status.ContainerStatuses = []corev1.ContainerStatus{{
+		Name:  componentPreflight,
+		State: corev1.ContainerState{Terminated: &corev1.ContainerStateTerminated{ExitCode: 0, Message: version + "\n"}},
+	}}
+	if err := r.Status().Update(context.Background(), pod); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// install runs a fresh install of f through its migration with the given Foreman version.
+func install(t *testing.T, r *ForemanReconciler, f *foremanv1alpha1.Foreman, version string) *foremanv1alpha1.Foreman {
+	t.Helper()
+	got := reconcileForeman(t, r, f)
+	completePreflight(t, r, got, version)
+	got = reconcileForeman(t, r, got)
+	completeJob(t, r.Client, migrationJobName(got, migrationHash(got, r.Images)), batchv1.JobComplete)
+	return reconcileForeman(t, r, got)
 }
 
 func reconcileForeman(t *testing.T, r *ForemanReconciler, f *foremanv1alpha1.Foreman) *foremanv1alpha1.Foreman {
@@ -105,6 +137,9 @@ func TestForemanInstallMigratesBeforeDeploying(t *testing.T) {
 	r := newForemanReconciler(c)
 
 	got := reconcileForeman(t, r, f)
+	requireCondition(t, got.Status.Conditions, foremanv1alpha1.ConditionProgressing, metav1.ConditionTrue, reasonPreflight)
+	completePreflight(t, r, got, "5.0.1")
+	got = reconcileForeman(t, r, got)
 	if got.Status.Phase != foremanv1alpha1.ForemanPhaseMigrating {
 		t.Fatalf("phase = %s, want Migrating", got.Status.Phase)
 	}
@@ -120,8 +155,11 @@ func TestForemanInstallMigratesBeforeDeploying(t *testing.T) {
 
 	completeJob(t, c, jobName, batchv1.JobComplete)
 	got = reconcileForeman(t, r, got)
-	if got.Status.AppliedMigrationHash != hash {
-		t.Errorf("applied hash = %q, want %q", got.Status.AppliedMigrationHash, hash)
+	if got.Status.AppliedMigrationHash != hash || got.Status.PendingMigrationHash != "" {
+		t.Errorf("applied hash = %q, pending = %q, want %q", got.Status.AppliedMigrationHash, got.Status.PendingMigrationHash, hash)
+	}
+	if got.Status.ForemanVersion != "5.0.1" {
+		t.Errorf("version = %q, want 5.0.1", got.Status.ForemanVersion)
 	}
 	if got.Status.Phase != foremanv1alpha1.ForemanPhaseProgressing {
 		t.Errorf("phase = %s, want Progressing", got.Status.Phase)
@@ -155,13 +193,19 @@ func TestForemanInstallMigratesBeforeDeploying(t *testing.T) {
 	requireCondition(t, got.Status.Conditions, foremanv1alpha1.ConditionReady, metav1.ConditionTrue, reasonReconciled)
 }
 
+// serverCert is the frontend server certificate the operator needs to call the Foreman API.
+func serverCert() *corev1.Secret {
+	return &corev1.Secret{Name: "prod-server", Namespace: testNamespace, Data: map[string][]byte{"ca.crt": testCAPEM()}}
+}
+
 func TestForemanUpgradeStopsWritersFirst(t *testing.T) {
 	f := testForeman()
-	c := newTestClient(f, dbSecret())
+	c := newTestClient(f, dbSecret(), serverCert())
 	r := newForemanReconciler(c)
 
-	got := reconcileForeman(t, r, f)
-	completeJob(t, c, migrationJobName(f, migrationHash(f, r.Images)), batchv1.JobComplete)
+	got := install(t, r, f, "5.0.1")
+	markDeploymentAvailable(t, c, "prod-web")
+	markDeploymentAvailable(t, c, "prod-dynflow-orchestrator")
 	got = reconcileForeman(t, r, got)
 
 	// A running web pod must stop before the new migration starts.
@@ -176,6 +220,8 @@ func TestForemanUpgradeStopsWritersFirst(t *testing.T) {
 	if err := c.Update(context.Background(), got); err != nil {
 		t.Fatal(err)
 	}
+	got = reconcileForeman(t, r, got)
+	completePreflight(t, r, got, "5.0.2")
 	got = reconcileForeman(t, r, got)
 	requireCondition(t, got.Status.Conditions, foremanv1alpha1.ConditionProgressing, metav1.ConditionTrue, reasonStoppingWriters)
 	for _, name := range []string{"prod-web", "prod-dynflow-orchestrator", "prod-dynflow-worker"} {
@@ -201,10 +247,12 @@ func TestForemanFailedMigration(t *testing.T) {
 	r := newForemanReconciler(c)
 
 	got := reconcileForeman(t, r, f)
+	completePreflight(t, r, got, "5.0.1")
+	got = reconcileForeman(t, r, got)
 	completeJob(t, c, migrationJobName(f, migrationHash(f, r.Images)), batchv1.JobFailed)
 	got = reconcileForeman(t, r, got)
-	if got.Status.Phase != foremanv1alpha1.ForemanPhaseFailed {
-		t.Errorf("phase = %s, want Failed", got.Status.Phase)
+	if got.Status.Phase != foremanv1alpha1.ForemanPhaseRollForwardRequired {
+		t.Errorf("phase = %s, want RollForwardRequired", got.Status.Phase)
 	}
 	requireCondition(t, got.Status.Conditions, foremanv1alpha1.ConditionDegraded, metav1.ConditionTrue, reasonMigrationFailed)
 }

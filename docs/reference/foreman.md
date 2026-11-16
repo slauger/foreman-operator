@@ -45,9 +45,13 @@ There is no separate replica count. `web.replicas` scales Puma and the frontend 
 | Field | Type | Description |
 |---|---|---|
 | `observedGeneration` | integer | Last processed generation |
-| `phase` | string | `Pending`, `Migrating`, `Progressing`, `Running`, or `Failed` |
+| `phase` | string | `Pending`, `Migrating`, `Progressing`, `Running`, `Blocked`, `RollForwardRequired`, or `Failed` |
 | `appliedMigrationHash` | string | Hash of the image reference and the sorted plugin list the database was last migrated for |
-| `conditions` | []Condition | See [Conditions](index.md#conditions) |
+| `pendingMigrationHash` | string | Hash of a migration that passed the preflight but has not completed. Once its Job exists, the database may be partly migrated |
+| `verifiedMigrationHash` | string | Hash of the last migration whose smoke checks passed |
+| `foremanVersion` | string | Foreman version the database was last migrated to, read from the image by the preflight Job |
+| `appliedPlugins` | []string | Plugins with dependencies the database was last migrated for |
+| `conditions` | []Condition | See [Conditions](index.md#conditions). `Verified` reports the smoke checks after the last migration |
 
 ## Created objects
 
@@ -64,7 +68,8 @@ There is no separate replica count. `web.replicas` scales Puma and the frontend 
 | Route | `<name>` | Yes | Exposure `Route`, or `Auto` on OpenShift. Host is `fqdn`, termination `passthrough`, target `<name>-web` |
 | TLSRoute | `<name>` | Yes | Exposure `TLSRoute`. Hostnames are `fqdn` and `aliases`, backend `<name>-web` port 443 |
 | HTTPRoute | `<name>` | Yes | Exposure `TLSRoute` with `httpSectionName` set. Backend `<name>-web` port 80 |
-| Job | `<name>-migrate-<hash>` | Yes | First eight characters of the migration hash |
+| Job | `<name>-preflight-<hash>` | Yes | Reads the Foreman version from `/usr/share/foreman/VERSION` of the new image into its termination message |
+| Job | `<name>-migrate-<hash>` | Yes | First eight characters of the migration hash. The annotation `platform.theforeman.org/foreman-version` records the version it migrates to |
 | Deployment | `<name>-web` | Yes | Containers `foreman` (Puma, about 1.5 GiB memory limit per worker, 1 to 16 workers) and `httpd` (Apache on ports 8443 and 8080) |
 | Deployment | `<name>-dynflow-orchestrator` | Yes | Always one replica, strategy `Recreate` |
 | Deployment | `<name>-dynflow-worker` | Yes | `dynflow.workerReplicas` |
@@ -76,14 +81,21 @@ In the web pods, Puma binds only to the Unix socket `/run/puma/puma.sock` in a s
 
 ## Migration
 
-The operator computes a hash over the image reference and the sorted plugin list. When it differs from `status.appliedMigrationHash`, the operator:
+The operator computes a hash over the image reference and the sorted plugin list. When it differs from `status.appliedMigrationHash`, it runs the preflight, then the migration, and the smoke checks after the rollout. See [Upgrades](../concepts/upgrades.md) for the checks and how to recover.
 
-1. scales the web and all Dynflow Deployments to zero, which also stops the frontend,
-2. waits until no Foreman pods remain,
-3. runs the Job `<name>-migrate-<hash>` with `db:migrate`, `db:seed`, and `upgrade:run`,
-4. records the hash and rolls out the Deployments.
+| Situation | Phase | Condition and reason |
+|---|---|---|
+| Preflight Job reads the version | `Progressing` | `Progressing`, `Preflight` |
+| Unsupported version path | `Blocked` | `Degraded`, `UnsupportedUpgradePath` |
+| A plugin that schedules tasks would be disabled | `Blocked` | `Degraded`, `PluginRemovalRefused` |
+| Tasks are planning, running, or paused | `Progressing` | `Progressing`, `WaitingForTasks` |
+| Writers stopping, migration running | `Migrating` | `Progressing`, `StoppingWriters` or `Migrating` |
+| Migration Job failed | `RollForwardRequired` | `Degraded`, `MigrationFailed` |
+| Previous image requested after the migration Job started | `RollForwardRequired` | `Degraded` and `Ready`, `RollForwardRequired` |
+| Rolled out, smoke checks pending | `Running` | `Verified` is `False`, `Verifying` or `VerificationFailed` |
+| Smoke checks passed | `Running` | `Verified`, `SmokeChecksPassed` |
 
-A failed Job sets the phase to `Failed` and the condition `Degraded` with reason `MigrationFailed`. Read the Job logs, fix the cause, and delete the Job to retry.
+While the preflight runs or blocks, the previous version keeps running.
 
 ## Example
 

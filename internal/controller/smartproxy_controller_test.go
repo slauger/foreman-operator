@@ -39,10 +39,27 @@ type fakeForemanAPI struct {
 	baseURL   string
 	rootCAs   *x509.CertPool
 	publicURL string
+	version   string
+	statusErr error
+	tasks     int
+	tasksErr  error
+	searches  []string
 }
 
 func newFakeForemanAPI() *fakeForemanAPI {
-	return &fakeForemanAPI{proxies: map[string]*foremanapi.SmartProxy{}, nextID: 1}
+	return &fakeForemanAPI{proxies: map[string]*foremanapi.SmartProxy{}, nextID: 1, version: "5.0.1"}
+}
+
+func (f *fakeForemanAPI) Status(context.Context) (*foremanapi.Status, error) {
+	if f.statusErr != nil {
+		return nil, f.statusErr
+	}
+	return &foremanapi.Status{Result: "ok", Version: f.version}, nil
+}
+
+func (f *fakeForemanAPI) CountTasks(_ context.Context, search string) (int, error) {
+	f.searches = append(f.searches, search)
+	return f.tasks, f.tasksErr
 }
 
 func (f *fakeForemanAPI) factory(baseURL, publicURL, _, _ string, rootCAs *x509.CertPool) (ForemanAPI, error) {

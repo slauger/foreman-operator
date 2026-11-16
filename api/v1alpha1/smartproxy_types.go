@@ -258,6 +258,10 @@ type SmartProxyStatus struct {
 	// last refreshed in Foreman. A change triggers a refresh.
 	// +optional
 	RegisteredChecksum string `json:"registeredChecksum,omitempty"`
+	// ForemanMigrationHash is the migration hash of the Foreman when the features were last
+	// refreshed. The Foreman verifies an upgrade once every proxy has caught up.
+	// +optional
+	ForemanMigrationHash string `json:"foremanMigrationHash,omitempty"`
 
 	// Conditions represent the latest observations.
 	// +listType=map

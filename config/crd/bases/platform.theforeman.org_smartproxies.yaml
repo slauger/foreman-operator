@@ -457,6 +457,11 @@ spec:
                 description: ForemanID is the identifier assigned by Foreman on registration.
                 format: int64
                 type: integer
+              foremanMigrationHash:
+                description: |-
+                  ForemanMigrationHash is the migration hash of the Foreman when the features were last
+                  refreshed. The Foreman verifies an upgrade once every proxy has caught up.
+                type: string
               observedGeneration:
                 description: ObservedGeneration is the generation last processed by
                   the controller.

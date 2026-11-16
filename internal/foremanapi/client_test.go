@@ -192,3 +192,33 @@ func TestErrorMessageFallbacks(t *testing.T) {
 		t.Errorf("len = %d, want 200", len(got))
 	}
 }
+
+func TestStatus(t *testing.T) {
+	c, rec := newTestServer(t, http.StatusOK, `{"result":"ok","status":200,"version":"5.0.1","api_version":2}`)
+	s, err := c.Status(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Version != "5.0.1" || rec.path != "/api/v2/status" {
+		t.Errorf("version = %q, path = %q", s.Version, rec.path)
+	}
+}
+
+func TestCountTasks(t *testing.T) {
+	c, rec := newTestServer(t, http.StatusOK, `{"total":43,"subtotal":2,"page":1,"per_page":1,"results":[]}`)
+	n, err := c.CountTasks(context.Background(), "state ^ (planning, running, paused)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 2 {
+		t.Errorf("count = %d, want the subtotal 2", n)
+	}
+	if rec.path != "/foreman_tasks/api/tasks" || !strings.Contains(rec.query, "per_page=1") || !strings.Contains(rec.query, "search=state") {
+		t.Errorf("request = %s?%s", rec.path, rec.query)
+	}
+
+	missing, _ := newTestServer(t, http.StatusNotFound, `{}`)
+	if _, err := missing.CountTasks(context.Background(), "state = running"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("err = %v, want ErrNotFound without foreman-tasks", err)
+	}
+}

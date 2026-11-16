@@ -96,6 +96,7 @@ func main() {
 		Scheme:       mgr.GetScheme(),
 		Images:       images,
 		Capabilities: caps,
+		NewAPI:       controller.NewForemanAPI,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Foreman")
 		os.Exit(1)

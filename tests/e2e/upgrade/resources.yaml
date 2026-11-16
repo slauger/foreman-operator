@@ -1,0 +1,55 @@
+# The resources of the upgrade test: a Foreman with Remote Execution, so the task check runs
+# against foreman-tasks, and an Execution proxy that must refresh its features after the upgrade.
+apiVersion: platform.theforeman.org/v1alpha1
+kind: Foreman
+metadata:
+  name: foreman
+spec:
+  fqdn: e2e-openvox.lnxlabs.de
+  image:
+    pullPolicy: Always
+  plugins:
+    - foreman_remote_execution
+  tls:
+    issuerRef:
+      name: foreman-internal-ca
+  database:
+    cluster:
+      name: foreman-db
+  valkey:
+    host: valkey
+  web:
+    replicas: 1
+  frontend:
+    image:
+      pullPolicy: Always
+    tls:
+      server:
+        issuerRef:
+          name: foreman-internal-ca
+      clientCA:
+        issuerRef:
+          name: foreman-internal-ca
+    exposure:
+      type: TLSRoute
+      gatewayRef:
+        name: foreman
+        tlsSectionName: https
+        httpSectionName: http
+---
+apiVersion: platform.theforeman.org/v1alpha1
+kind: SmartProxy
+metadata:
+  name: rex
+spec:
+  foremanRef: foreman
+  image:
+    pullPolicy: Always
+  profile: Execution
+  url: https://rex.foreman-e2e.svc:8443
+  tls:
+    issuerRef:
+      name: foreman-internal-ca
+  features:
+    remoteExecutionSSH:
+      sshKeySecretRef: rex-ssh

@@ -24,8 +24,11 @@ import (
 	"github.com/slauger/foreman-operator/internal/foremanapi"
 )
 
-// ForemanAPI is the part of the Foreman API used to register Smart Proxies.
+// ForemanAPI is the part of the Foreman API the operator uses: Smart Proxy registration, and
+// the version and task checks around upgrades.
 type ForemanAPI interface {
+	Status(ctx context.Context) (*foremanapi.Status, error)
+	CountTasks(ctx context.Context, search string) (int, error)
 	FindSmartProxy(ctx context.Context, name string) (*foremanapi.SmartProxy, error)
 	CreateSmartProxy(ctx context.Context, name, proxyURL string) (*foremanapi.SmartProxy, error)
 	UpdateSmartProxy(ctx context.Context, id int64, name, proxyURL string) error
@@ -154,6 +157,7 @@ func (r *SmartProxyReconciler) reconcile(ctx context.Context, p *foremanv1alpha1
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
+	p.Status.ForemanMigrationHash = f.Status.AppliedMigrationHash
 	p.Status.Phase = string(foremanv1alpha1.ForemanPhaseRunning)
 	setCondition(&p.Status.Conditions, p.Generation, foremanv1alpha1.ConditionReady, metav1.ConditionTrue, reasonReconciled, "proxy is registered in Foreman")
 	return ctrl.Result{RequeueAfter: resyncPeriod}, nil
@@ -241,29 +245,29 @@ func (r *SmartProxyReconciler) ensureService(ctx context.Context, p *foremanv1al
 	return err
 }
 
-// apiFor builds a Foreman API client with the operator's OAuth consumer.
-func (r *SmartProxyReconciler) apiFor(ctx context.Context, f *foremanv1alpha1.Foreman) (ForemanAPI, error) {
+// foremanAPIFor builds a Foreman API client with the operator's OAuth consumer.
+func foremanAPIFor(ctx context.Context, c client.Reader, newAPI ForemanAPIFactory, f *foremanv1alpha1.Foreman) (ForemanAPI, error) {
 	secret := &corev1.Secret{}
-	if err := r.Get(ctx, client.ObjectKey{Namespace: f.Namespace, Name: foremanSecretsName(f)}, secret); err != nil {
+	if err := c.Get(ctx, client.ObjectKey{Namespace: f.Namespace, Name: foremanSecretsName(f)}, secret); err != nil {
 		return nil, err
 	}
 	key, secretValue := string(secret.Data[keyOAuthConsumerKey]), string(secret.Data[keyOAuthConsumerSecret])
 	if key == "" || secretValue == "" {
 		return nil, errors.New("the Foreman secrets do not contain OAuth credentials yet")
 	}
-	rootCAs, err := r.frontendRootCAs(ctx, f)
+	rootCAs, err := frontendRootCAs(ctx, c, f)
 	if err != nil {
 		return nil, err
 	}
 	baseURL := fmt.Sprintf("https://%s.%s.svc", foremanWebServiceName(f), f.Namespace)
-	return r.NewAPI(baseURL, foremanPublicURL(f), key, secretValue, rootCAs)
+	return newAPI(baseURL, foremanPublicURL(f), key, secretValue, rootCAs)
 }
 
 // frontendRootCAs returns the CA from ca.crt of the frontend server certificate. A public
 // certificate, for example from ACME, often comes without ca.crt and uses the system roots.
-func (r *SmartProxyReconciler) frontendRootCAs(ctx context.Context, f *foremanv1alpha1.Foreman) (*x509.CertPool, error) {
+func frontendRootCAs(ctx context.Context, c client.Reader, f *foremanv1alpha1.Foreman) (*x509.CertPool, error) {
 	secret := &corev1.Secret{}
-	if err := r.Get(ctx, client.ObjectKey{Namespace: f.Namespace, Name: frontendServerCertName(f)}, secret); err != nil {
+	if err := c.Get(ctx, client.ObjectKey{Namespace: f.Namespace, Name: frontendServerCertName(f)}, secret); err != nil {
 		return nil, fmt.Errorf("frontend server certificate: %w", err)
 	}
 	ca := secret.Data["ca.crt"]
@@ -281,7 +285,7 @@ func (r *SmartProxyReconciler) frontendRootCAs(ctx context.Context, f *foremanv1
 // registration and refresh, so every change of URL, configuration, or certificate refreshes.
 func (r *SmartProxyReconciler) register(ctx context.Context, p *foremanv1alpha1.SmartProxy, f *foremanv1alpha1.Foreman, registration string) error {
 	log := logf.FromContext(ctx)
-	api, err := r.apiFor(ctx, f)
+	api, err := foremanAPIFor(ctx, r.Client, r.NewAPI, f)
 	if err != nil {
 		return err
 	}
@@ -338,7 +342,7 @@ func (r *SmartProxyReconciler) finalize(ctx context.Context, p *foremanv1alpha1.
 		case err != nil:
 			return err
 		default:
-			api, err := r.apiFor(ctx, f)
+			api, err := foremanAPIFor(ctx, r.Client, r.NewAPI, f)
 			if err != nil {
 				return err
 			}

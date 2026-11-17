@@ -9,7 +9,7 @@ The upstream Foreman images are based on CentOS Stream 10, declare named users, 
 |---|---|---|---|
 | `ghcr.io/slauger/foreman-operator` | UBI 9 minimal | Operator binary | amd64, arm64 |
 | `ghcr.io/slauger/foreman-operator-foreman` | UBI 9, boot disk tools from CentOS Stream 9 | Foreman 5.0 RPMs, VMware support, and the [plugin catalog](plugins.md#catalog) | amd64 |
-| `ghcr.io/slauger/foreman-operator-smart-proxy` | UBI 9 | `foreman-proxy`, `smart_proxy_dhcp_dnsmasq`, dnsmasq, `bind-utils`, the dnsmasq supervisor, `ipmitool`, and the Dynflow, Remote Execution SSH, and Ansible plugins with the OpenSSH client and `ansible-core` | amd64 |
+| `ghcr.io/slauger/foreman-operator-smart-proxy` | UBI 9 | `foreman-proxy`, `smart_proxy_dhcp_dnsmasq`, `smart_proxy_discovery`, dnsmasq, `bind-utils`, the dnsmasq supervisor, `ipmitool`, and the Dynflow, Remote Execution SSH, and Ansible plugins with the OpenSSH client and `ansible-core` | amd64 |
 | `ghcr.io/slauger/foreman-operator-boot-files` | UBI 9 minimal, files from CentOS Stream 9 | syslinux, GRUB 2, and shim boot loaders | amd64 |
 | `ghcr.io/slauger/foreman-operator-frontend` | UBI 9 | `httpd`, `mod_ssl`; runs as the container `httpd` in the Foreman web pods, the configuration is mounted by the operator | amd64, arm64 |
 
@@ -25,7 +25,7 @@ Foreman and Smart Proxy RPMs exist for x86_64 only.
 | Manual run | The given tag |
 | [Release](../development/releasing.md) | The version, for example `0.1.0`, and `latest` |
 
-The operator uses the tag of its `--default-image-tag` flag for every component image unless a resource sets `image.tag` or `image.digest`. The chart sets the flag to its `appVersion`, so a released chart runs the images of the same release. Images are not signed while the repository is private, see [Supply Chain Security](../guides/supply-chain-security.md).
+The operator uses the tag of its `--default-image-tag` flag for every component image unless a resource sets `image.tag` or `image.digest`. The chart sets the flag to its `appVersion`, so a released chart runs the images of the same release. Release images are signed with cosign, see [Supply Chain Security](../guides/supply-chain-security.md).
 
 ## Versions
 
@@ -42,7 +42,7 @@ Renovate tracks the pins with its `rpm` datasource, which reads the repository m
 
 `ipmitool` is in the RHEL 9 AppStream but not in UBI 9. A build stage downloads the CentOS Stream 9 package and verifies its signature, and the final stage installs it. Its dependencies all come from UBI 9. `rubygem-rubyipmi` then installs from the Foreman repository. `freeipmi` is not included, because it pulls in `systemd`.
 
-`foreman-proxy` also hard-requires `rubygem-ruby-libvirt`, which needs `libvirt-libs` and is not in the UBI repositories. The image therefore installs all other dependencies from the repositories and then installs `foreman-proxy` and `rubygem-smart_proxy_dhcp_dnsmasq` with `rpm --nodeps`. The build fails if any other dependency is unsatisfied. The libvirt providers cannot be used.
+`foreman-proxy` also hard-requires `rubygem-ruby-libvirt`, which needs `libvirt-libs` and is not in the UBI repositories. The image therefore installs all other dependencies from the repositories and then installs `foreman-proxy`, `rubygem-smart_proxy_dhcp_dnsmasq`, and `rubygem-smart_proxy_discovery` with `rpm --nodeps`. The build fails if any other dependency is unsatisfied. The libvirt providers cannot be used.
 
 The Foreman plugins repository is unsigned upstream (`gpgcheck=0`), so only the digests of the plugin RPMs are verified. `bind-utils` provides `nsupdate` for the DNS feature.
 
@@ -59,7 +59,7 @@ Checked against UBI 9 BaseOS, AppStream, and CodeReady Builder, plus the Foreman
 | Package set | Result |
 |---|---|
 | `foreman`, `foreman-service`, `foreman-postgresql`, `foreman-redis`, `foreman-dynflow-sidekiq` | Installed in the Foreman image |
-| `foreman_discovery`, `foreman_puppet`, `foreman_remote_execution` | Installed |
+| The plugins of the [catalog](plugins.md#catalog), `foreman-vmware` | Installed |
 | `foreman-proxy` | Installed with `--nodeps`, without `rubygem-ruby-libvirt` |
 | `ipmitool` | Not in UBI 9, installed from CentOS Stream 9 |
 | `foreman-bootloaders-redhat` | GRUB and shim packages are missing, replaced by the boot-files image |

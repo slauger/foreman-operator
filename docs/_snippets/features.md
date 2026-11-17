@@ -1,12 +1,13 @@
 - 🌐 **Foreman on Kubernetes** - Web and Dynflow as native workloads, declared through a `Foreman` resource
 - 🧱 **Checked Upgrades** - A preflight refuses skipped releases and waits for running tasks, writers stop while a Job migrates the database, and smoke checks verify the new version; no rollback onto a partly migrated database
+- 💾 **Backup and Restore** - A documented restore order for the database and secrets, exercised by a restore drill
 - 🛰️ **Smart Proxy as a Resource** - Each proxy is one `SmartProxy`, registered in Foreman automatically through OAuth, for provisioning or for Remote Execution and Ansible over SSH
-- 🥾 **Bare-Metal Provisioning** - DHCP and TFTP through dnsmasq, DNS through nsupdate, on direct L2 networks through Multus
+- 🥾 **Bare-Metal Provisioning** - DHCP and TFTP through dnsmasq, DNS through nsupdate, BMC, and Discovery, on direct L2 networks through Multus
 - 🔐 **cert-manager Integration** - Server, client, and proxy certificates requested from cert-manager issuers
 - 🐘 **CloudNativePG** - PostgreSQL through CloudNativePG, with a chart for the cluster
 - 🚪 **TLS Passthrough Frontend** - Apache with mutual TLS as a sidecar of Puma, behind a LoadBalancer, an OpenShift Route, or a Gateway API TLSRoute; Puma listens only on a Unix socket
-- 🔒 **Rootless Images** - Own UBI 9 images, built for random UIDs; only dnsmasq starts as root, with a minimal capability set
-- 🛡️ **Supply Chain Security** - BuildKit provenance and SBOMs, Renovate, and govulncheck; cosign signing once the repository is public
 - 🧩 **Plugin Catalog** - Remote Execution, Ansible, Boot Disk, Discovery, Templates, Webhooks, Puppet, and the KubeVirt and Proxmox compute resources in the Foreman image, enabled per instance; VMware is always available
 - ⏰ **Recurring Tasks** - The Foreman cron tasks as CronJobs, suspended during migrations
-- 🧭 **Planned** - `Release` upgrades, OpenShift qualification, and Katello
+- 🔒 **Rootless Images** - Own UBI 9 images, built for random UIDs; only dnsmasq starts as root, with a minimal capability set
+- 🛡️ **Supply Chain Security** - Pinned Foreman RPMs tracked by Renovate, cosign-signed release images and charts, provenance, and SBOMs
+- 🧭 **Planned** - OpenShift qualification, a real PXE build, `Release` image sets, and Katello

@@ -1,27 +1,84 @@
 # Roadmap
 
-The focus of the first stages is Foreman with Smart Proxy. Versions are intended goals and may change.
+The focus is Foreman with Smart Proxies for provisioning and Remote Execution. Katello follows later. Stages are intended goals and may change. Open work is tracked in [GitHub issues](https://github.com/slauger/foreman-operator/issues).
 
-| Version | Content | Done when | State |
-|---|---|---|---|
-| v0.0 Docs | Repository, documentation, CRD types | This page is online | Done |
-| v0.0 Spike | Manual manifests on k3s, `frontend` image, dnsmasq next to an unprivileged proxy, UBI 9 Foreman and proxy images | A test client gets a lease and a boot file over Multus | Done on a single-node bridge, see [Testing](development/testing.md#pxe-lab) |
-| v0.1 | Operator with `Foreman` and its frontend, Dynflow, cert-manager, CloudNativePG, migration before rollout | Foreman runs, login and API work | Implemented as MVP, verified on k3s through a Gateway API TLSRoute, with the frontend as a sidecar in the web pods |
-| v0.2 | `SmartProxy` profile `Provisioning`, registration, DHCP, TFTP, DNS | A complete PXE build on k3s, driven only by custom resources | Implemented as MVP, E2E test passes on k3s with a fake VLAN |
-| v0.3 | OpenShift qualification, dedicated SCC for the proxy | The same PXE build on OpenShift | Open |
-| v0.4 | Hosts queue, profile `Execution`, plugin catalog, recurring tasks | Remote Execution works, plugin activation runs through a migration | Open |
-| v0.5 | `Release`, backup, and restore | Upgrade and restore drills pass | Upgrade preflight, roll forward, smoke checks, and the upgrade E2E test from `0.1.0` implemented; restore order documented and drilled with a logical dump; `Release` open |
-| v0.6 | Migration from existing installations | Rehearsal with a production-sized copy | Open |
-| v0.7+ | Katello with `Candlepin`, `Pulp`, content proxies | Sync and host registration work | Open |
+## Done
 
-The MVP is v0.1 and v0.2: `Foreman` with its frontend and `SmartProxy` with DHCP, TFTP, and DNS, created only from custom resources. DHCP and TFTP can be tested only to a limited extent on the public E2E cluster, which uses a node-local bridge as a fake VLAN. A real PXE build is planned on a dedicated VLAN in a homelab.
+| Stage | Content | State |
+|---|---|---|
+| Spike | Manual manifests on k3s: dnsmasq next to an unprivileged proxy on Multus, UBI 9 images | A test client got a lease and a boot file, see [Testing](development/testing.md#pxe-lab) |
+| Foreman | `Foreman` with the frontend sidecar, Dynflow, cert-manager, CloudNativePG, migration before rollout | Released in `0.1.0` |
+| Provisioning | `SmartProxy` profile `Provisioning`: registration, DHCP and TFTP through dnsmasq, DNS through nsupdate, BMC | Released in `0.1.0`; E2E on a fake VLAN |
+| Execution | Profile `Execution` with Remote Execution and Ansible over SSH, hosts queue | Released in `0.1.0`; E2E runs both job types |
+| Plugin catalog | Activation through a migration; Remote Execution, Ansible, Templates, Webhooks, and Puppet | Released in `0.1.0` |
+| More plugins | Boot Disk with its tools, Discovery with the proxy feature, KubeVirt, Proxmox, VMware | On `develop` |
+| Recurring tasks | CronJobs for `cron:hourly` to `cron:monthly` | On `develop` |
+| Upgrades | Preflight, fence, migration, roll forward guard, smoke checks; upgrade E2E from `0.1.0` | On `develop` |
+| Restore | Restore order documented and drilled with a logical dump | On `develop` |
+| Releases | semantic-release, signed images and charts in GHCR, SBOMs, source references | Done |
+| Version tracking | Pinned Foreman and plugin RPMs, tracked by Renovate | On `develop` |
+
+## Towards a beta
+
+A beta means: a real host is built, the operator runs on OpenShift, and an operator can run it without reading the code. These items are needed for that, roughly in this order.
+
+| Item | Why | Issue |
+|---|---|---|
+| Release `0.2.0` | Ships upgrades, recurring tasks, the plugin catalog, and the restore order, which are only on `develop` | |
+| Sign `develop` images, publish the documentation | The repository is public, so the reasons for `sign: false` and the manual docs workflow are gone | |
+| Scheduling for Smart Proxies | `nodeSelector`, tolerations, and affinity. A provisioning proxy must run on a node that has the VLAN trunked | |
+| A complete PXE build | No host has been built end to end. A KubeVirt VM on the E2E cluster, or a real VLAN in a homelab | [#38](https://github.com/slauger/foreman-operator/issues/38) |
+| OpenShift qualification | A dedicated SCC for dnsmasq, an insecure Route for `/unattended`, the E2E test on OpenShift | [#12](https://github.com/slauger/foreman-operator/issues/12) |
+| E2E in CI | The E2E tests run by hand on one shared cluster. A Kind job for Foreman and the `Execution` proxy, without Multus, would catch regressions on every pull request | |
+| Foreman 5.1 | The first minor upgrade through a Renovate pull request and the upgrade flow, once Foreman 5.1 is released | |
+
+## Operations
+
+Part of the [original concept](#comparison-with-the-concept) or found missing while testing, not implemented yet. Each can be added without changing the API in an incompatible way.
+
+| Item | Purpose |
+|---|---|
+| PodDisruptionBudget for web | Keeps one web pod during node drains |
+| Default NetworkPolicy | Limits Foreman and the proxies to the expected peers. Puma no longer needs it, since it has no TCP listener |
+| Metrics | Migration phase and duration, upgrade blocks, registration errors; a ServiceMonitor in the chart |
+| Valkey authentication and TLS | Needed for shared or managed Valkey instances |
+| Backups in the database chart | `ScheduledBackup` with the Barman Cloud plugin as optional values of `foreman-db-cnpg` |
+| Off-cluster Smart Proxies | Export a certificate bundle for a proxy outside the cluster, like the `auth-bundle` command of `foremanctl` |
+| `Release` | A kind for compatible image sets of Foreman, frontend, and Smart Proxy, and the proxy upgrade after Foreman |
+
+## Later
+
+| Item | Notes |
+|---|---|
+| Migration from existing installations | Plan in [Migration](concepts/migration.md); rehearsal against a production-sized copy |
+| Katello | `Candlepin`, `Pulp`, `/pub` ([#33](https://github.com/slauger/foreman-operator/issues/33)), and content proxies, see [Katello](concepts/katello.md) |
+| More Smart Proxy providers | Infoblox for existing DHCP, `dns_nsupdate_gss` with a keytab, Remote Execution pull mode over MQTT |
+| External authentication | Kerberos or SAML in the frontend |
+| More plugins | `foreman_openscap` once `scap-security-guide` is available |
+
+## Comparison with the concept
+
+The original design proposal for this operator, written as input for the [foreman-kubernetes RFC](https://community.theforeman.org/t/rfc-first-class-kubernetes-deployment-for-foreman-katello-candlepin-and-pulp/47739), differs from the implementation in these points:
+
+| Concept | Implementation | Reason |
+|---|---|---|
+| Separate `Frontend` kind with its own replicas | Apache as a sidecar in the web pods | Puma has no TCP listener, so no pod can forge the client certificate headers ([#7](https://github.com/slauger/foreman-operator/issues/7)) |
+| Dynflow only when a plugin needs it | Orchestrator and one worker always run | Foreman core uses Dynflow as its ActiveJob backend |
+| ISC DHCP with OMAPI | dnsmasq with `smart_proxy_dhcp_dnsmasq` | ISC DHCP is end of life and not in UBI 9; one subnet per proxy as a consequence |
+| PostgreSQL from CloudNativePG or external | CloudNativePG only | One path to test. An external path can be added later |
+| Platform detection with a manual override | Detection only | No case needed an override yet |
+| Smoker tests on Kind, k3s, and OpenShift | Chainsaw tests on one k3s cluster | Smoker targets a Katello installation. Kind and OpenShift are open, see above |
+| HPA, PDB, and NetworkPolicy from `Foreman` | Not implemented | See [Operations](#operations) |
+| Upstream images | Own UBI 9 images | Random UID support and the provisioning tools were missing upstream |
 
 ## Principles
 
 - **Spike before operator.** Whether DHCP and TFTP work in a pod on Multus was the largest unknown. The spike answered it before the API was fixed.
 - **Check OpenShift behavior early.** The operator never sets a UID for Foreman, frontend, or proxy containers, so they run under the UID the platform assigns.
+- **Test on a cluster.** A feature counts as done when an E2E step passes on the test cluster, not when the controller tests pass.
 
 ## Open decisions
 
-- Whether `foreman_discovery` moves into a later version
-- Whether the operator should stay separate from `foreman-kubernetes`
+- Whether the operator should stay separate from `foreman-kubernetes`, or be proposed there
+- Whether KubeVirt may be installed on the shared E2E cluster for [#38](https://github.com/slauger/foreman-operator/issues/38)
+- Whether `Release` is still needed once the chart pins all images to one version

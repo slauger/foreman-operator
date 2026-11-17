@@ -1,9 +1,9 @@
 # Supply Chain Security
 
 !!! note "Status"
-    The `Images` workflow builds and pushes all images with `sign: false`. The `Release` workflow signs only when the repository is public. This page describes what is active today and the controls that are switched on once the repository is public.
+    Release images and charts are signed with keyless cosign and carry SBOM and build provenance attestations. Images built from `develop` and feature branches are not signed yet.
 
-## Active today
+## Controls
 
 | Control | Where |
 |---|---|
@@ -18,9 +18,11 @@
 | Signed commits | GPG, by convention |
 | Containerfile linting | hadolint with `.hadolint.yaml` in `_container-build.yaml` |
 | Build provenance and SPDX SBOM | BuildKit, attached to every pushed image |
-| SPDX and CycloneDX SBOMs | syft, uploaded as workflow artifacts |
+| SPDX and CycloneDX SBOMs | syft; workflow artifacts, and release assets for releases |
 
-## Switched on once the repository is public
+## Release signing
+
+The `Release` workflow signs only when the repository is public, which it is:
 
 | Control | Tool | Workflow |
 |---|---|---|
@@ -29,7 +31,7 @@
 | SBOM attestation | CycloneDX from [syft](https://github.com/anchore/syft), attested with cosign | `_container-build.yaml` |
 | Policy validation | [Conforma](https://github.com/conforma) with `.conforma/policy.yaml` | `_conforma-validate.yaml`, not called by a pipeline yet |
 
-Once images are signed, a signature can be verified like this:
+Verify an image signature:
 
 ```bash
 cosign verify ghcr.io/slauger/foreman-operator:0.1.0 \
@@ -37,17 +39,13 @@ cosign verify ghcr.io/slauger/foreman-operator:0.1.0 \
   --certificate-identity-regexp 'github\.com/slauger/foreman-operator'
 ```
 
-## Limits while the repository is private
+Verify a chart the same way with `ghcr.io/slauger/charts/foreman-operator:0.1.0`, and the build provenance with `gh attestation verify oci://ghcr.io/slauger/foreman-operator:0.1.0 --owner slauger`.
 
-- Keyless cosign signatures are recorded in the public Rekor transparency log. They expose image names and the repository identity. The `Images` workflow therefore runs with `sign: false`. The `Release` workflow checks the repository visibility and signs only when it is public.
-- GitHub artifact attestations for private repositories require GitHub Enterprise Cloud.
-- GitHub Pages sites are public even for private repositories, so the documentation is not deployed automatically.
-
-These statements come from the documentation of the respective services and have not been tested here.
+The `Images` workflow for `develop` and feature branches still runs with `sign: false`, which dates from the time the repository was private. Use release images where signatures matter.
 
 ## Policy exceptions
 
-`.conforma/policy.yaml` allows only Red Hat base image registries. The `boot-files` image copies static files from a CentOS Stream 9 build stage into a UBI 9 minimal image. Whether the policy accepts the build stage is not checked yet.
+`.conforma/policy.yaml` allows only Red Hat base image registries. The `foreman`, `smart-proxy`, and `boot-files` images copy packages or files from CentOS Stream 9 build stages, whose signatures are checked during the build. Whether the policy accepts these build stages is not checked yet.
 
 ## License compliance
 

@@ -22,7 +22,7 @@
 
 ## Impact on the base
 
-- The frontend adds `/pulp`, `/rhsm`, and `/pub/katello-rhsm-consumer` rules.
+- The frontend adds `/pulp`, `/rhsm`, and `/pub/katello-rhsm-consumer` rules ([#33](https://github.com/slauger/foreman-operator/issues/33)).
 - The upgrade fence includes Pulp and Candlepin.
 - Valkey adds database 8 for Pulp.
 - More secrets must be preserved: the Candlepin OAuth secret, the Pulp `SECRET_KEY`, and `database_fields.symmetric.key`.

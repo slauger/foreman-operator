@@ -1,27 +1,17 @@
 # 👷 foreman-operator
 
 [![CI](https://github.com/slauger/foreman-operator/actions/workflows/ci.yaml/badge.svg)](https://github.com/slauger/foreman-operator/actions/workflows/ci.yaml)
+[![Release](https://img.shields.io/github/v/release/slauger/foreman-operator)](https://github.com/slauger/foreman-operator/releases)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
-[![Status](https://img.shields.io/badge/status-experimental-orange)](#project-status)
+[![Status](https://img.shields.io/badge/status-experimental-orange)](#status)
 
 A Kubernetes Operator that maps [Foreman](https://theforeman.org/) and Smart Proxy infrastructure onto native building blocks - CRDs, Secrets, cert-manager, CloudNativePG, and Multus - for running Foreman and bare-metal provisioning on **Kubernetes** and **OpenShift**.
 
 > **Experimental.** This is an unofficial, unsupported prototype. It is not affiliated with or endorsed by the Foreman project. The API will change without notice. Do not use it in production.
 
-## Project status
+## Status
 
-| Area | State |
-|---|---|
-| CRD types and generated CRDs | Implemented, validation tested with envtest |
-| `Foreman` controller | Implemented, migration, web, and Dynflow verified on a k3s cluster |
-| Frontend (`Foreman.spec.frontend`) | Implemented as a sidecar in the web pods. Verified through a Gateway API TLSRoute in the E2E test |
-| `SmartProxy` controller | Implemented, E2E test passes on k3s with a fake VLAN |
-| Container images | Built by CI, public on GHCR, unsigned while the repository is private |
-| Helm chart for the operator | Implemented, not published to a registry yet |
-| CloudNativePG chart | Implemented, used by the E2E setup |
-| OpenShift | Not qualified |
-
-The MVP covers v0.1 and v0.2 of the [roadmap](docs/roadmap.md).
+Foreman with its frontend, Smart Proxies for provisioning and for Remote Execution, checked upgrades, and the restore order are implemented and pass the E2E tests on a k3s cluster. Releases publish signed images and charts. A real PXE build on a real network, OpenShift, and Katello are not done yet. See the [roadmap](docs/roadmap.md).
 
 Some concepts and ideas were adopted from [theforeman/foreman-kubernetes](https://github.com/theforeman/foreman-kubernetes), the community effort to run Foreman on Kubernetes. See [Acknowledgements](docs/acknowledgements.md).
 
@@ -30,16 +20,17 @@ Some concepts and ideas were adopted from [theforeman/foreman-kubernetes](https:
 <!-- features: keep in sync with docs/_snippets/features.md -->
 - 🌐 **Foreman on Kubernetes** - Web and Dynflow as native workloads, declared through a `Foreman` resource
 - 🧱 **Checked Upgrades** - A preflight refuses skipped releases and waits for running tasks, writers stop while a Job migrates the database, and smoke checks verify the new version; no rollback onto a partly migrated database
+- 💾 **Backup and Restore** - A documented restore order for the database and secrets, exercised by a restore drill
 - 🛰️ **Smart Proxy as a Resource** - Each proxy is one `SmartProxy`, registered in Foreman automatically through OAuth, for provisioning or for Remote Execution and Ansible over SSH
-- 🥾 **Bare-Metal Provisioning** - DHCP and TFTP through dnsmasq, DNS through nsupdate, on direct L2 networks through Multus
+- 🥾 **Bare-Metal Provisioning** - DHCP and TFTP through dnsmasq, DNS through nsupdate, BMC, and Discovery, on direct L2 networks through Multus
 - 🔐 **cert-manager Integration** - Server, client, and proxy certificates requested from cert-manager issuers
 - 🐘 **CloudNativePG** - PostgreSQL through CloudNativePG, with a chart for the cluster
 - 🚪 **TLS Passthrough Frontend** - Apache with mutual TLS as a sidecar of Puma, behind a LoadBalancer, an OpenShift Route, or a Gateway API TLSRoute; Puma listens only on a Unix socket
-- 🔒 **Rootless Images** - Own UBI 9 images, built for random UIDs; only dnsmasq starts as root, with a minimal capability set
-- 🛡️ **Supply Chain Security** - BuildKit provenance and SBOMs, Renovate, and govulncheck; cosign signing once the repository is public
 - 🧩 **Plugin Catalog** - Remote Execution, Ansible, Boot Disk, Discovery, Templates, Webhooks, Puppet, and the KubeVirt and Proxmox compute resources in the Foreman image, enabled per instance; VMware is always available
 - ⏰ **Recurring Tasks** - The Foreman cron tasks as CronJobs, suspended during migrations
-- 🧭 **Planned** - `Release` upgrades, OpenShift qualification, and Katello
+- 🔒 **Rootless Images** - Own UBI 9 images, built for random UIDs; only dnsmasq starts as root, with a minimal capability set
+- 🛡️ **Supply Chain Security** - Pinned Foreman RPMs tracked by Renovate, cosign-signed release images and charts, provenance, and SBOMs
+- 🧭 **Planned** - OpenShift qualification, a real PXE build, `Release` image sets, and Katello
 <!-- /features -->
 
 ## Architecture
@@ -59,25 +50,13 @@ flowchart LR
     Dynflow --> Valkey
 
     Web <-->|"mutual TLS"| Prov["SmartProxy<br/>Provisioning"]
+    Web <-->|"mutual TLS"| Exec["SmartProxy<br/>Execution"]
     Prov -->|"Multus L2"| Net["Provisioning networks"]
+    Exec -->|"SSH"| Managed["Managed hosts"]
     Build -->|"DHCP, TFTP, templates"| Net
 ```
 
-A **Foreman** is the root resource. It owns the web workload, the Dynflow workloads, and database migrations. Every web pod runs Apache as a frontend container next to Puma. Apache terminates mutual TLS and reaches Puma only over a Unix socket, so no other pod can reach Puma. `spec.frontend` exposes Foreman through a passthrough Route, a LoadBalancer, or a Gateway API TLSRoute. A **SmartProxy** is one proxy registered in Foreman. A provisioning proxy runs dnsmasq for DHCP and TFTP next to the proxy process and attaches to a provisioning network through Multus.
-
-## CRD Model
-
-All resources use the API group `platform.theforeman.org/v1alpha1`.
-
-| Kind | State | Purpose | Creates |
-|---|---|---|---|
-| **`Foreman`** | Implemented | FQDN, image, database and Valkey references, frontend with mutual TLS and exposure | Deployments, migration Job, Service, Secrets, ConfigMaps, Certificates, Route or TLSRoute and HTTPRoute |
-| **`SmartProxy`** | Implemented for `Provisioning` and `Execution` | One registered proxy with networks and features | Deployment, with a dnsmasq container for provisioning, Service, ConfigMap, PVC, Certificate, Foreman registration |
-| **`Release`** | Planned | Compatible image sets, ordered upgrades | Jobs, status |
-| **`Candlepin`** | Planned | Subscription service for Katello | Deployment, Service, Secrets |
-| **`Pulp`** | Planned | Content service for Katello | Deployments, Job, registration |
-
-Certificates come from cert-manager. PostgreSQL comes from CloudNativePG. Foreman objects such as subnets, domains, and hosts stay in Foreman.
+A **`Foreman`** is the root resource. It owns the web and Dynflow workloads, the recurring task CronJobs, and the database migrations. Every web pod runs Apache next to Puma; Apache terminates mutual TLS and reaches Puma only over a Unix socket. A **`SmartProxy`** is one proxy registered in Foreman: `Provisioning` runs dnsmasq for DHCP and TFTP on a Multus network, `Execution` runs Remote Execution and Ansible over SSH. Certificates come from cert-manager and PostgreSQL from CloudNativePG. Subnets, domains, and hosts stay in Foreman. See [Architecture](docs/concepts/architecture.md).
 
 ## Differences to VM-based Installations
 
@@ -85,6 +64,7 @@ Certificates come from cert-manager. PostgreSQL comes from CloudNativePG. Forema
 |---|---|---|
 | **Configuration** | Answer files or Ansible parameters | Declarative CRDs |
 | **Orchestration** | systemd, Puppet or Ansible | Kubernetes controllers |
+| **Upgrades** | Installer run, one release at a time | Image change; preflight, fenced migration Job, smoke checks |
 | **Privileges** | Root on the host | Rootless, random UID compatible; dnsmasq with a minimal capability set |
 | **Certificates** | Generated on the host | cert-manager |
 | **Database** | Local or external PostgreSQL | CloudNativePG |
@@ -95,56 +75,47 @@ Certificates come from cert-manager. PostgreSQL comes from CloudNativePG. Forema
 
 ## Quick Start
 
-The chart is not published yet. Install it from a checkout. cert-manager, CloudNativePG, and a Valkey instance must already exist in the cluster.
+cert-manager, CloudNativePG, and a Valkey instance must already exist in the cluster.
 
 ```bash
+VERSION=0.1.0
+
 # Helm does not upgrade CRDs, so they are applied explicitly
-kubectl apply --server-side -f charts/foreman-operator/crds/
+helm pull oci://ghcr.io/slauger/charts/foreman-operator --version "${VERSION}" --untar
+kubectl apply --server-side -f foreman-operator/crds/
 
-# No release image exists yet, so the image tag is set explicitly
-helm install foreman-operator charts/foreman-operator \
-  --namespace foreman-operator \
-  --create-namespace \
-  --set image.tag=develop
+helm install foreman-operator oci://ghcr.io/slauger/charts/foreman-operator \
+  --version "${VERSION}" --namespace foreman-operator --create-namespace
 
-helm install foreman-db charts/foreman-db-cnpg \
-  --namespace foreman \
-  --create-namespace
+helm install foreman-db oci://ghcr.io/slauger/charts/foreman-db-cnpg \
+  --version "${VERSION}" --namespace foreman --create-namespace
 ```
 
-Then create a `Foreman` with `spec.frontend`. The [Getting Started](docs/guides/getting-started.md) guide walks through the prerequisites, example resources, and the first login. Example resources are also in [`config/samples`](config/samples).
-
-## Local Development
-
-```bash
-make test          # Generate, format, vet, and run unit and envtest tests
-make cover         # Tests with the coverage gate
-make ci            # All CI checks
-make run           # Run the operator against the current kubeconfig
-make docs-serve    # Documentation with live reload
-```
-
-See [Contributing](CONTRIBUTING.md).
-
-## Testing
-
-| Level | What | Command |
-|---|---|---|
-| Unit | Builders, configuration rendering, OAuth signing | `make test` |
-| Controller | Reconcilers against a fake client | `make test` |
-| API | CEL validation rules against an envtest API server | `make test` |
-| Chart | helm-unittest | `make helm-unittest` |
-| End to end | Chainsaw test `tests/e2e/mvp` on a k3s cluster with Multus, cert-manager, CloudNativePG, and Envoy Gateway | `tests/e2e/setup.sh`, then `chainsaw test` |
-
-CI enforces a total coverage of at least 60 percent. The Chainsaw E2E test passed on a k3s cluster with cert-manager, CloudNativePG, Multus, and Envoy Gateway, both against an existing installation and from scratch.
-
-## Supply Chain Security
-
-Dependencies are kept current by Renovate, and CI runs `govulncheck` and `golangci-lint`. Images are built with BuildKit provenance and SBOMs. They are not signed while the repository is private, because keyless signatures would publish repository details to the public Sigstore log. See [Supply Chain Security](docs/guides/supply-chain-security.md).
+Then create a `Foreman`. The [Getting Started](docs/guides/getting-started.md) guide walks through the internal CA, Valkey, the example resources, and the first login. Example resources are also in [`config/samples`](config/samples).
 
 ## Documentation
 
-The documentation sources are in [`docs/`](docs/index.md). Build them with `make docs-build`.
+| | |
+|---|---|
+| [Getting Started](docs/guides/getting-started.md) | Install the operator, create Foreman and a provisioning proxy |
+| [Remote Execution](docs/guides/remote-execution.md) | Plugins and an `Execution` proxy |
+| [Upgrades](docs/concepts/upgrades.md) | Preflight, migration, smoke checks, and recovery |
+| [Backup and Restore](docs/guides/backup-restore.md) | What to back up and the restore order |
+| [API Reference](docs/reference/index.md) | All fields of `Foreman` and `SmartProxy` |
+| [Testing](docs/development/testing.md) | Unit, envtest, chart, E2E, upgrade, and restore tests |
+| [Roadmap](docs/roadmap.md) | What is done and what comes next |
+
+Build the documentation locally with `make docs-serve`.
+
+## Development
+
+```bash
+make test          # Generate, format, vet, and run unit and envtest tests
+make ci            # All CI checks
+make run           # Run the operator against the current kubeconfig
+```
+
+See [Contributing](CONTRIBUTING.md) and [Local Setup](docs/development/local-setup.md).
 
 ## License
 

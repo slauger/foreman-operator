@@ -48,9 +48,11 @@ Default repositories:
 |---|---|
 | `Pending` | Waiting for a dependency, such as the database Secret or the referenced Foreman |
 | `Migrating` | `Foreman` only: writers are stopped or the migration Job runs |
+| `Blocked` | `Foreman` only: the upgrade preflight refused the change, the previous version keeps running |
+| `RollForwardRequired` | `Foreman` only: a migration failed or the previous image was requested after a migration started. Foreman stays stopped |
 | `Progressing` | Workloads are rolling out, or a Smart Proxy registration is retried |
 | `Running` | Fully reconciled. Every pod of the web and orchestrator workloads, or of the proxy, runs the current template |
-| `Failed` | A reconcile error or a failed migration Job |
+| `Failed` | A reconcile error |
 
 ## Conditions
 
@@ -58,13 +60,15 @@ Default repositories:
 |---|---|
 | `Ready` | The resource is fully reconciled and serving |
 | `Progressing` | A change is being rolled out |
-| `Degraded` | The resource runs with reduced function. Set with reason `MigrationFailed` when a migration Job failed |
+| `Degraded` | The resource runs with reduced function or an upgrade is blocked. Reasons `MigrationFailed`, `RollForwardRequired`, `UnsupportedUpgradePath`, `PluginRemovalRefused`, and `PreflightFailed` |
+| `Verified` | `Foreman` only: the smoke checks after the last migration passed, see [Upgrades](../concepts/upgrades.md#verify) |
 | `Paused` | Reconciliation is suspended by annotation |
 
-Reasons used on `Ready` include `Reconciled`, `ReconcileError`, `WaitingForDatabase`, `WaitingForForeman`, `Migrating`, `RollingOut`, and `RegistrationFailed`.
+Reasons used on `Ready` include `Reconciled`, `ReconcileError`, `WaitingForDatabase`, `WaitingForForeman`, `Migrating`, `RollingOut`, `RollForwardRequired`, and `RegistrationFailed`. See [Foreman](foreman.md#migration) for the reasons during a migration.
 
 ## Annotations
 
 | Annotation | Effect |
 |---|---|
 | `platform.theforeman.org/paused: "true"` | Suspends reconciliation of this object and sets `Paused` to true. Child objects are left as they are |
+| `platform.theforeman.org/skip-upgrade-checks: "true"` | `Foreman` only: skips the upgrade preflight checks and the roll forward guard. For recovery only, see [Upgrades](../concepts/upgrades.md#overriding-the-checks) |

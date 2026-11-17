@@ -5,9 +5,9 @@
 - 🥾 **Bare-Metal Provisioning** - DHCP and TFTP through dnsmasq, DNS through nsupdate, BMC, and Discovery, on direct L2 networks through Multus
 - 🔐 **cert-manager Integration** - Server, client, and proxy certificates requested from cert-manager issuers
 - 🐘 **CloudNativePG** - PostgreSQL through CloudNativePG, with a chart for the cluster
-- 🚪 **TLS Passthrough Frontend** - Apache with mutual TLS as a sidecar of Puma, behind a LoadBalancer, an OpenShift Route, or a Gateway API TLSRoute; Puma listens only on a Unix socket
+- 🚪 **TLS Passthrough Frontend** - Apache with mutual TLS as a sidecar of Puma, behind a LoadBalancer, a Gateway API TLSRoute, or a Route; Puma listens only on a Unix socket
 - 🧩 **Plugin Catalog** - Remote Execution, Ansible, Boot Disk, Discovery, Templates, Webhooks, Puppet, and the KubeVirt and Proxmox compute resources in the Foreman image, enabled per instance; VMware is always available
 - ⏰ **Recurring Tasks** - The Foreman cron tasks as CronJobs, suspended during migrations
 - 🔒 **Rootless Images** - Own UBI 9 images, built for random UIDs; only dnsmasq starts as root, with a minimal capability set
 - 🛡️ **Supply Chain Security** - Pinned Foreman RPMs tracked by Renovate, cosign-signed release images and charts, provenance, and SBOMs
-- 🧭 **Planned** - OpenShift qualification, a real PXE build, `Release` image sets, and Katello
+- 🧭 **Planned** - A real PXE build, `Release` image sets, and Katello

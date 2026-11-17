@@ -75,6 +75,7 @@ nav:
       - Migration: concepts/migration.md
   - Guides:
       - Getting Started: guides/getting-started.md
+      - Remote Execution: guides/remote-execution.md
       - Backup and Restore: guides/backup-restore.md
       - Supply Chain Security: guides/supply-chain-security.md
   - Reference:

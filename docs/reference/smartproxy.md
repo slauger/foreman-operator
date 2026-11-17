@@ -58,6 +58,7 @@ The network is attached as `net1`. The dnsmasq container assigns its static addr
 | `phase` | string | `Pending`, `Progressing`, `Running`, or `Failed` |
 | `foremanID` | integer | Identifier assigned by Foreman |
 | `registeredChecksum` | string | URL, configuration, certificate, and Foreman migration whose features were last refreshed in Foreman |
+| `foremanMigrationHash` | string | Migration hash of the Foreman when the features were last refreshed. The Foreman verifies an upgrade once every proxy caught up |
 | `conditions` | []Condition | See [Conditions](index.md#conditions) |
 
 ## Created objects

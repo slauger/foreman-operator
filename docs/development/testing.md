@@ -32,12 +32,21 @@ chainsaw test --config tests/e2e/chainsaw-config.yaml tests/e2e/mvp
 | Foreman migrates and runs | Phase `Running` after the migration Job, for the current generation | Passed |
 | Puma has no TCP listener | The web pod listens only on ports 8080 and 8443 | Passed |
 | The frontend container serves Foreman over the Gateway | `/api/v2/ping` through the TLSRoute | Passed |
-| Smart Proxy is registered with its features | Phase `Running`, `foremanID` set, features `BMC DHCP DNS Logs TFTP Templates` in Foreman | Passed |
+| Recurring tasks run as CronJobs | The four CronJobs exist, and a Job created from `cron-hourly` completes | Passed |
+| Only the enabled plugins load | The plugin list of `/api/v2/plugins` matches `spec.plugins` with dependencies | Passed |
+| The compute resource providers are available | KubeVirt, Proxmox, and VMware | Passed |
+| Bootdisk builds a generic boot ISO | `/api/bootdisk/generic` returns an ISO 9660 image | Passed |
+| Smart Proxy is registered with its features | Phase `Running`, `foremanID` set, features `BMC DHCP DNS Discovery Logs TFTP Templates` in Foreman | Passed |
 | DHCP reservation reaches a client on the fake VLAN | A reservation created through the proxy API gives the client its address | Passed |
 | TFTP serves the boot loader | The client downloads `pxelinux.0` | Passed |
+| A discovered host reaches Foreman through the proxy | The client posts facts to the proxy, and the discovered host appears in Foreman | Passed |
 | DNS record lands in BIND | A record created through the proxy API resolves | Passed |
 | DHCP state survives a new pod | After a rollout restart, the lease file and the reservation are still on the volume | Passed |
 | The BMC provider finds ipmitool | `ipmitool -V` runs in the proxy container | Passed |
+| The proxy probes complete the TLS handshake | No SSL errors in the proxy log | Passed |
+| The Execution proxy is registered with its features | Features `Ansible Dynflow Logs Script` in Foreman | Passed |
+| A Remote Execution job runs on the target over SSH | `Run Command - Script Default` succeeds on an Alpine target over SSH | Passed |
+| An Ansible job runs on the target | `Run Command - Ansible Default` succeeds on the same target | Passed |
 | Deleting the Smart Proxy removes it from Foreman | The finalizer unregisters the proxy | Passed |
 
 ## Upgrade test
@@ -56,7 +65,7 @@ Run `setup.sh` again before the MVP test, since the upgrade test leaves its own 
 
 `tests/e2e/restore.sh` runs the restore order of [Backup and Restore](../guides/backup-restore.md#restore-drill) in an empty namespace with `IMAGE_TAG`. Like the upgrade test, it leaves its resources in the namespace.
 
-Independent of the Chainsaw steps, the OAuth signature of the operator was verified against the real Foreman on the cluster: correctly signed requests are accepted and wrongly signed requests are rejected. With the frontend sidecar, the full test passed on e2e-openvox both against an installation upgraded from the separate `Frontend` and from scratch, with a new namespace and an empty database.
+The E2E, upgrade, and restore tests run by hand before a pull request is merged. CI runs only the checks above.
 
 ## PXE lab
 
@@ -73,7 +82,6 @@ The dnsmasq container needs the PSA level `privileged`, because `NET_ADMIN` is n
 
 ## Not available yet
 
-- Running the Smart Proxy steps of the E2E test on the cluster
-- E2E tests on Kind
+- E2E tests in CI, for example on Kind
 - Qualification on OpenShift
 - A PXE build test with a real host on a real L2 network

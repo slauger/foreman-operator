@@ -1,5 +1,5 @@
 site_name: Foreman Operator
-site_description: An experimental Kubernetes Operator for running Foreman and Smart Proxies on Kubernetes and OpenShift
+site_description: An experimental Kubernetes Operator for running Foreman and Smart Proxies on Kubernetes
 site_url: https://slauger.github.io/foreman-operator
 repo_url: https://github.com/slauger/foreman-operator
 repo_name: slauger/foreman-operator

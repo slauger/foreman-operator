@@ -1,6 +1,6 @@
 # Foreman Operator
 
-A Kubernetes Operator that maps [Foreman](https://theforeman.org/) and Smart Proxy infrastructure onto native building blocks - CRDs, Secrets, cert-manager, CloudNativePG, and Multus - for running Foreman and bare-metal provisioning on **Kubernetes** and **OpenShift**.
+A Kubernetes Operator that maps [Foreman](https://theforeman.org/) and Smart Proxy infrastructure onto native building blocks - CRDs, Secrets, cert-manager, CloudNativePG, and Multus - for running Foreman and bare-metal provisioning on **Kubernetes**.
 
 !!! warning "Experimental"
     This is an unofficial, unsupported prototype. It is not affiliated with or endorsed by the Foreman project. The API will change without notice. Do not use it in production.
@@ -36,7 +36,7 @@ The tests run on a single-node k3s cluster with cert-manager, CloudNativePG, Mul
 | Upgrades | From the released `0.1.0` chart to the current images, with data and proxy registrations kept and the smoke checks passing |
 | Restore | Database, secrets, and proxy registrations restored in the documented order, with encrypted columns readable |
 
-Not tested: a real VLAN, a real NIC, real PXE firmware, a complete host build, and OpenShift.
+Not tested: a real VLAN, a real NIC, real PXE firmware, and a complete host build.
 
 ## Scope
 

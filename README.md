@@ -5,13 +5,13 @@
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![Status](https://img.shields.io/badge/status-experimental-orange)](#status)
 
-A Kubernetes Operator that maps [Foreman](https://theforeman.org/) and Smart Proxy infrastructure onto native building blocks - CRDs, Secrets, cert-manager, CloudNativePG, and Multus - for running Foreman and bare-metal provisioning on **Kubernetes** and **OpenShift**.
+A Kubernetes Operator that maps [Foreman](https://theforeman.org/) and Smart Proxy infrastructure onto native building blocks - CRDs, Secrets, cert-manager, CloudNativePG, and Multus - for running Foreman and bare-metal provisioning on **Kubernetes**.
 
 > **Experimental.** This is an unofficial, unsupported prototype. It is not affiliated with or endorsed by the Foreman project. The API will change without notice. Do not use it in production.
 
 ## Status
 
-Foreman with its frontend, Smart Proxies for provisioning and for Remote Execution, checked upgrades, and the restore order are implemented and pass the E2E tests on a k3s cluster. Releases publish signed images and charts. A real PXE build on a real network, OpenShift, and Katello are not done yet. See the [roadmap](docs/roadmap.md).
+Foreman with its frontend, Smart Proxies for provisioning and for Remote Execution, checked upgrades, and the restore order are implemented and pass the E2E tests on a k3s cluster. Releases publish signed images and charts. A real PXE build on a real network and Katello are not done yet. See the [roadmap](docs/roadmap.md).
 
 Some concepts and ideas were adopted from [theforeman/foreman-kubernetes](https://github.com/theforeman/foreman-kubernetes), the community effort to run Foreman on Kubernetes. See [Acknowledgements](docs/acknowledgements.md).
 
@@ -25,12 +25,12 @@ Some concepts and ideas were adopted from [theforeman/foreman-kubernetes](https:
 - 🥾 **Bare-Metal Provisioning** - DHCP and TFTP through dnsmasq, DNS through nsupdate, BMC, and Discovery, on direct L2 networks through Multus
 - 🔐 **cert-manager Integration** - Server, client, and proxy certificates requested from cert-manager issuers
 - 🐘 **CloudNativePG** - PostgreSQL through CloudNativePG, with a chart for the cluster
-- 🚪 **TLS Passthrough Frontend** - Apache with mutual TLS as a sidecar of Puma, behind a LoadBalancer, an OpenShift Route, or a Gateway API TLSRoute; Puma listens only on a Unix socket
+- 🚪 **TLS Passthrough Frontend** - Apache with mutual TLS as a sidecar of Puma, behind a LoadBalancer, a Gateway API TLSRoute, or a Route; Puma listens only on a Unix socket
 - 🧩 **Plugin Catalog** - Remote Execution, Ansible, Boot Disk, Discovery, Templates, Webhooks, Puppet, and the KubeVirt and Proxmox compute resources in the Foreman image, enabled per instance; VMware is always available
 - ⏰ **Recurring Tasks** - The Foreman cron tasks as CronJobs, suspended during migrations
 - 🔒 **Rootless Images** - Own UBI 9 images, built for random UIDs; only dnsmasq starts as root, with a minimal capability set
 - 🛡️ **Supply Chain Security** - Pinned Foreman RPMs tracked by Renovate, cosign-signed release images and charts, provenance, and SBOMs
-- 🧭 **Planned** - OpenShift qualification, a real PXE build, `Release` image sets, and Katello
+- 🧭 **Planned** - A real PXE build, `Release` image sets, and Katello
 <!-- /features -->
 
 ## Architecture

@@ -187,11 +187,12 @@ kubectl -n foreman get jobs,deployments,pods
 The `Foreman` passes these phases:
 
 1. `Pending` until the database Secret exists.
-2. `Migrating` while the Job `foreman-migrate-<hash>` runs `db:migrate`, `db:seed`, and `upgrade:run`. The first migration takes several minutes.
-3. `Progressing` while web and Dynflow roll out.
-4. `Running` when web and the Dynflow orchestrator are available.
+2. `Progressing` while the Job `foreman-preflight-<hash>` reads the Foreman version of the image.
+3. `Migrating` while the Job `foreman-migrate-<hash>` runs `db:migrate`, `db:seed`, and `upgrade:run`. The first migration takes several minutes.
+4. `Progressing` while web and Dynflow roll out.
+5. `Running` when web and the Dynflow orchestrator are available. The condition `Verified` becomes `True` once the smoke checks pass.
 
-If the migration Job fails, the phase is `Failed`. Read the Job logs, fix the cause, and delete the Job to retry.
+If the migration Job fails, the phase is `RollForwardRequired`. Read the Job logs, fix the cause, and delete the Job to retry. See [Upgrades](../concepts/upgrades.md#roll-forward).
 
 ## Log in
 
@@ -212,7 +213,7 @@ curl --cacert foreman-ca.crt https://foreman.example.com/api/v2/ping
 
 ## Add a provisioning Smart Proxy
 
-This step is covered by the E2E test but has not been run on a cluster yet. It needs Multus and a NetworkAttachmentDefinition for the provisioning network.
+This step needs Multus and a NetworkAttachmentDefinition for the provisioning network. The E2E test runs it on a node-local bridge; a real VLAN has not been tested.
 
 The dnsmasq container runs as root with `NET_ADMIN` and other capabilities, so the namespace needs the Pod Security level `privileged`:
 
@@ -282,6 +283,9 @@ Once the proxy pod is available and the `Foreman` is `Ready`, the operator regis
 
 ## Next steps
 
-- [API Reference](../reference/index.md) for all fields
-- [Provisioning](../concepts/provisioning.md) for the pod layout and network rules
+- [Remote Execution](remote-execution.md) to enable plugins and add an `Execution` proxy
+- [Plugins](../concepts/plugins.md) for the catalog, compute resources, and boot disks
 - [Upgrades](../concepts/upgrades.md) for image changes and migrations
+- [Backup and Restore](backup-restore.md) before the first upgrade
+- [Provisioning](../concepts/provisioning.md) for the pod layout and network rules
+- [API Reference](../reference/index.md) for all fields

@@ -22,8 +22,8 @@ flowchart LR
   Web --> Valkey
 
   Web <-->|mutual TLS| Prov[SmartProxy: Provisioning]
-  Web <-.->|planned| Exec[SmartProxy: Execution]
-  Exec -.-> Managed[Managed hosts]
+  Web <-->|mutual TLS| Exec[SmartProxy: Execution]
+  Exec -->|SSH| Managed[Managed hosts]
   Prov -->|Multus| Net[Provisioning networks]
   Build -->|DHCP, TFTP, templates| Net
 ```
@@ -42,7 +42,7 @@ A resource that needs a missing capability fails with a reconcile error. APIs in
 
 | Flag | Default | Description |
 |---|---|---|
-| `--default-image-tag` | `develop` | Tag of the component images when a resource names neither tag nor digest |
+| `--default-image-tag` | `develop` | Tag of the component images when a resource names neither tag nor digest. The chart sets it to its `appVersion` |
 | `--watch-namespace` | empty | Restricts the operator to one namespace. Empty watches all namespaces |
 | `--leader-elect` | `false` | Enables leader election |
 | `--metrics-secure` | `false` | Serves metrics over HTTPS with authentication and authorization |
@@ -68,8 +68,9 @@ flowchart TD
 | Dynflow orchestrator | Deployment, Recreate | 1 | Sidekiq with the orchestrator configuration | Implemented |
 | Dynflow worker | Deployment | 1 by default | Sidekiq with the worker configuration | Implemented |
 | Dynflow hosts queue | Deployment | 0 by default | Sidekiq with the hosts queue configuration | Implemented |
+| Foreman preflight | Job | n/a | Reads the Foreman version of a new image, see [Upgrades](upgrades.md#preflight) | Implemented |
 | Foreman migration | Job | n/a | `db:migrate`, `db:seed`, and `upgrade:run` | Implemented |
-| Smart Proxy | Deployment, Recreate | 1 | See [Smart Proxy](smart-proxy.md) | Implemented for `Provisioning` |
+| Smart Proxy | Deployment, Recreate | 1 | See [Smart Proxy](smart-proxy.md) | Implemented for `Provisioning` and `Execution` |
 | Recurring tasks | CronJob | n/a | `rails cron:hourly`, daily, weekly, monthly | Implemented |
 
 The process split follows the `foremanctl` deployment. Apache runs as a sidecar of Puma rather than as a separate Deployment, so Puma has no TCP listener and no other pod can forge the client certificate headers. Mutual TLS between a separate frontend and Puma would need extra certificates and still leave a port open. The trade-off is that frontend and web scale 1:1 and a frontend change restarts the web pods. See [Traffic Flow](traffic-flow.md#why-a-sidecar). Puma workers are derived from the memory limit of the web container, about 1.5 GiB per worker, between 1 and 16.

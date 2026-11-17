@@ -1,8 +1,13 @@
 name: Docs
 
-# GitHub Pages sites are public even for private repositories.
-# Add a push trigger when the project is published.
+# Publishes the documentation from main to GitHub Pages.
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - 'config/samples/**'
   workflow_dispatch:
 
 permissions:

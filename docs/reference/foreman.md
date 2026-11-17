@@ -87,6 +87,7 @@ The operator computes a hash over the image reference and the sorted plugin list
 | Situation | Phase | Condition and reason |
 |---|---|---|
 | Preflight Job reads the version | `Progressing` | `Progressing`, `Preflight` |
+| Preflight Job failed, for example because the image cannot be pulled | `Blocked` | `Degraded`, `PreflightFailed` |
 | Unsupported version path | `Blocked` | `Degraded`, `UnsupportedUpgradePath` |
 | A plugin that schedules tasks would be disabled | `Blocked` | `Degraded`, `PluginRemovalRefused` |
 | Tasks are planning, running, or paused | `Progressing` | `Progressing`, `WaitingForTasks` |

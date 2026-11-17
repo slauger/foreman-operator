@@ -26,7 +26,7 @@ The images are amd64 only, except the operator and the frontend.
 Releases publish the charts to `oci://ghcr.io/slauger/charts`, see the [releases](https://github.com/slauger/foreman-operator/releases) for the versions. Helm installs CRDs only on the first install and never upgrades them, so apply them explicitly from the chart before every install or upgrade:
 
 ```bash
-VERSION=0.1.0
+VERSION=0.2.0
 
 helm pull oci://ghcr.io/slauger/charts/foreman-operator --version "${VERSION}" --untar
 kubectl apply --server-side -f foreman-operator/crds/

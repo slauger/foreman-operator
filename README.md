@@ -78,7 +78,7 @@ A **`Foreman`** is the root resource. It owns the web and Dynflow workloads, the
 cert-manager, CloudNativePG, and a Valkey instance must already exist in the cluster.
 
 ```bash
-VERSION=0.1.0
+VERSION=0.2.0
 
 # Helm does not upgrade CRDs, so they are applied explicitly
 helm pull oci://ghcr.io/slauger/charts/foreman-operator --version "${VERSION}" --untar

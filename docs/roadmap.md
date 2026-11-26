@@ -11,12 +11,12 @@ The focus is Foreman with Smart Proxies for provisioning and Remote Execution. K
 | Provisioning | `SmartProxy` profile `Provisioning`: registration, DHCP and TFTP through dnsmasq, DNS through nsupdate, BMC | Released in `0.1.0`; E2E on a fake VLAN |
 | Execution | Profile `Execution` with Remote Execution and Ansible over SSH, hosts queue | Released in `0.1.0`; E2E runs both job types |
 | Plugin catalog | Activation through a migration; Remote Execution, Ansible, Templates, Webhooks, and Puppet | Released in `0.1.0` |
-| More plugins | Boot Disk with its tools, Discovery with the proxy feature, KubeVirt, Proxmox, VMware | On `develop` |
-| Recurring tasks | CronJobs for `cron:hourly` to `cron:monthly` | On `develop` |
-| Upgrades | Preflight, fence, migration, roll forward guard, smoke checks; upgrade E2E from `0.1.0` | On `develop` |
-| Restore | Restore order documented and drilled with a logical dump | On `develop` |
+| More plugins | Boot Disk with its tools, Discovery with the proxy feature, KubeVirt, Proxmox, VMware | Released in `0.2.0` |
+| Recurring tasks | CronJobs for `cron:hourly` to `cron:monthly` | Released in `0.2.0` |
+| Upgrades | Preflight, fence, migration, roll forward guard, smoke checks; upgrade E2E from `0.1.0` | Released in `0.2.0` |
+| Restore | Restore order documented and drilled with a logical dump | Released in `0.2.0` |
 | Releases | semantic-release, signed images and charts in GHCR, SBOMs, source references | Done |
-| Version tracking | Pinned Foreman and plugin RPMs, tracked by Renovate | On `develop` |
+| Version tracking | Pinned Foreman and plugin RPMs, tracked by Renovate | Released in `0.2.0` |
 
 ## Towards a beta
 
@@ -24,27 +24,26 @@ A beta means: a real host is built, the operator runs on OpenShift, and an opera
 
 | Item | Why | Issue |
 |---|---|---|
-| Release `0.2.0` | Ships upgrades, recurring tasks, the plugin catalog, and the restore order, which are only on `develop` | |
-| Sign `develop` images, publish the documentation | The repository is public, so the reasons for `sign: false` and the manual docs workflow are gone | |
-| Scheduling for Smart Proxies | `nodeSelector`, tolerations, and affinity. A provisioning proxy must run on a node that has the VLAN trunked | |
+| Sign `develop` images | The repository is public, so the reason for `sign: false` is gone | [#50](https://github.com/slauger/foreman-operator/issues/50) |
+| Scheduling | `nodeSelector`, tolerations, and affinity. A provisioning proxy must run on a node that has the VLAN trunked | [#52](https://github.com/slauger/foreman-operator/issues/52) |
 | A complete PXE build | No host has been built end to end. A KubeVirt VM on the E2E cluster, or a real VLAN in a homelab | [#38](https://github.com/slauger/foreman-operator/issues/38) |
 | OpenShift qualification | A dedicated SCC for dnsmasq, an insecure Route for `/unattended`, the E2E test on OpenShift | [#12](https://github.com/slauger/foreman-operator/issues/12) |
-| E2E in CI | The E2E tests run by hand on one shared cluster. A Kind job for Foreman and the `Execution` proxy, without Multus, would catch regressions on every pull request | |
-| Foreman 5.1 | The first minor upgrade through a Renovate pull request and the upgrade flow, once Foreman 5.1 is released | |
+| E2E in CI | The E2E tests run by hand on one shared cluster. A Kind job for Foreman and the `Execution` proxy, without Multus, would catch regressions on every pull request | [#51](https://github.com/slauger/foreman-operator/issues/51) |
+| Foreman 5.1 | The first minor upgrade through a Renovate pull request and the upgrade flow, once Foreman 5.1 is released | [#60](https://github.com/slauger/foreman-operator/issues/60) |
 
 ## Operations
 
 Part of the [original concept](#comparison-with-the-concept) or found missing while testing, not implemented yet. Each can be added without changing the API in an incompatible way.
 
-| Item | Purpose |
-|---|---|
-| PodDisruptionBudget for web | Keeps one web pod during node drains |
-| Default NetworkPolicy | Limits Foreman and the proxies to the expected peers. Puma no longer needs it, since it has no TCP listener |
-| Metrics | Migration phase and duration, upgrade blocks, registration errors; a ServiceMonitor in the chart |
-| Valkey authentication and TLS | Needed for shared or managed Valkey instances |
-| Backups in the database chart | `ScheduledBackup` with the Barman Cloud plugin as optional values of `foreman-db-cnpg` |
-| Off-cluster Smart Proxies | Export a certificate bundle for a proxy outside the cluster, like the `auth-bundle` command of `foremanctl` |
-| `Release` | A kind for compatible image sets of Foreman, frontend, and Smart Proxy, and the proxy upgrade after Foreman |
+| Item | Purpose | Issue |
+|---|---|---|
+| PodDisruptionBudget for web | Keeps one web pod during node drains | [#53](https://github.com/slauger/foreman-operator/issues/53) |
+| Default NetworkPolicy | Limits Foreman and the proxies to the expected peers. Puma no longer needs it, since it has no TCP listener | [#54](https://github.com/slauger/foreman-operator/issues/54) |
+| Metrics | Migration phase and duration, upgrade blocks, registration errors; a ServiceMonitor in the chart | [#55](https://github.com/slauger/foreman-operator/issues/55) |
+| Valkey authentication and TLS | Needed for shared or managed Valkey instances | [#56](https://github.com/slauger/foreman-operator/issues/56) |
+| Backups in the database chart | `ScheduledBackup` with the Barman Cloud plugin as optional values of `foreman-db-cnpg` | [#57](https://github.com/slauger/foreman-operator/issues/57) |
+| Off-cluster Smart Proxies | Export a certificate bundle for a proxy outside the cluster, like the `auth-bundle` command of `foremanctl` | [#58](https://github.com/slauger/foreman-operator/issues/58) |
+| `Release` | A kind for compatible image sets of Foreman, frontend, and Smart Proxy, and the proxy upgrade after Foreman | [#59](https://github.com/slauger/foreman-operator/issues/59) |
 
 ## Later
 
@@ -81,4 +80,4 @@ The original design proposal for this operator, written as input for the [forema
 
 - Whether the operator should stay separate from `foreman-kubernetes`, or be proposed there
 - Whether KubeVirt may be installed on the shared E2E cluster for [#38](https://github.com/slauger/foreman-operator/issues/38)
-- Whether `Release` is still needed once the chart pins all images to one version
+- Whether `Release` is still needed once the chart pins all images to one version ([#59](https://github.com/slauger/foreman-operator/issues/59))
